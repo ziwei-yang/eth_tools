@@ -1,4 +1,2 @@
-bin/
 conf/
-lib/
-pyvenv.cfg
+*/__pycache__/
