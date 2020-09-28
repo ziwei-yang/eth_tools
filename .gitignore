@@ -1,2 +1,5 @@
-conf/
 */__pycache__/
+__pycache__/
+conf/
+cache/
+data/
