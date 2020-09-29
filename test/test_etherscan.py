@@ -16,11 +16,9 @@ class TestEtherscanAPI(unittest.TestCase):
 # 
     def test_erc20_tx_his(self):
         txs = etherscan.addr_erc20_tx(self.BURN_ADDR)
-        print(txs[0])
-        print(txs[1])
-        print(etherscan.format_etherscan_erc20_tx(txs[0]))
-        print(etherscan.format_etherscan_erc20_tx(txs[1]))
         self.assertEqual(len(txs) > 20, True)
+        for tx in txs[0:29]:
+            print(etherscan.format_etherscan_erc20_tx(tx, self.BURN_ADDR))
 
 if __name__ == '__main__':
     unittest.main()

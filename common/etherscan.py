@@ -33,13 +33,20 @@ def addr_erc20_tx(addr, **kwargs):
             startblock=0, endblock=99999999, sort='desc')
 
 from datetime import datetime
-def format_etherscan_erc20_tx(json):
+def format_etherscan_erc20_tx(json, addr=None):
     offset = 8*3600 # GMT+8
     l = [
             datetime.utcfromtimestamp(offset+int(json['timeStamp'])).strftime('%Y%m%d %H:%M:%S'),
             json['tokenSymbol'].ljust(12),
-            ("%.8f" % (int(json['value']) / (10**int(json['tokenDecimal'])))).ljust(20),
-            json['from'],
-            json['to']
+            ("%.8f" % (int(json['value']) / (10**int(json['tokenDecimal'])))).ljust(20)
         ]
+    if addr is not None and addr.lower() == json['from'].lower():
+        l.append('-->')
+        l.append(json['to'])
+    elif addr is not None and addr.lower() == json['to'].lower():
+        l.append('<--')
+        l.append(json['from'])
+    else:
+        l.append(json['from'])
+        l.append(json['to'])
     return ' '.join(l)
