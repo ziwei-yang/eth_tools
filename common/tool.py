@@ -1,46 +1,28 @@
 import os
-import requests
 import json
 from web3 import Web3
 
+from . import etherscan
+from . import cache
+
 w3 = Web3(Web3.HTTPProvider(
     'https://mainnet.infura.io/v3/' + os.environ['INFURA_ID']))
-root_dir = os.environ['ETH_TOOLS_DIR']
 
-internal_contract_cache = {}
-
-token_symbol_to_addr_cache = {}
-token_addr_to_symbol_cache = {}
-
+########################################
+# Basic ABI and contract invokation.
+########################################
 def is_verbose(**kwargs):
     return kwargs.get('verbose') != False
 
-def clear_abi_cache(addr):
-    abi_file = root_dir+'/data/abi/'+addr
-    if os.path.exists(abi_file):
-        os.remove(abi_file)
-
 def contract_abi(addr, **kwargs):
-    abi_file = root_dir+'/data/abi/'+addr
-    if os.path.exists(abi_file):
-        with open(abi_file, 'r') as f:
-            return f.read()
-    with open(abi_file, 'w') as f:
-        abi = _etherscan_contract_abi(addr, **kwargs)
-        f.write(abi)
+    abi = cache.abi_cache_get(addr)
+    if abi is not None:
         return abi
+    abi = etherscan.contract_abi(addr, **kwargs)
+    cache.abi_cache_set(addr, abi)
+    return abi
 
-# For contract_abi() only.
-def _etherscan_contract_abi(addr, **kwargs):
-    if is_verbose(**kwargs):
-        print("--> Fetching ABI from etherscan", addr)
-    url = 'https://api.etherscan.io/api?module=contract&action=getabi&address=' + addr + '&apikey=' + os.environ['ETHERSCAN_KEY']
-    ret = requests.get(url)
-    j = json.loads(ret.text)
-    if j['status'] == "1":
-        return j['result']
-    raise Exception("Failed in GET", url, "status:", j['status'],"\n", ret.text)
-
+internal_contract_cache = {}
 def get_contract(addr):
     if addr in internal_contract_cache:
         return internal_contract_cache[addr]
@@ -49,49 +31,36 @@ def get_contract(addr):
     return internal_contract_cache[addr]
 
 def call_contract(contract_addr, func, *args, **kwargs):
-    if contract_addr in token_addr_to_symbol_cache:
-        symbol = token_addr_to_symbol_cache[contract_addr]
-        if is_verbose(**kwargs):
+    if is_verbose(**kwargs):
+        if cache.token_cache_get(contract_addr) is not None:
+            symbol = cache.token_cache_get(contract_addr)['symbol']
             print("Call", symbol, func, *args)
-    else:
-        if is_verbose(**kwargs):
+        else:
             print("Call", contract_addr, func, *args)
     return get_contract(contract_addr).functions[func](*args).call()
 
-def token_symbol(addr, **kwargs):
-    if addr in token_addr_to_symbol_cache:
-        return token_addr_to_symbol_cache[addr]
-
-    token_addr_f = root_dir+'/cache/addr.'+addr+'.json'
-    if os.path.exists(token_addr_f) == False:
-        symbol = call_contract(addr, 'symbol', **kwargs)
-        with open(token_addr_f, 'w') as f:
-            f.write('{"symbol":"'+symbol+'"}')
-        symbol_f = root_dir+'/cache/symbol.'+symbol
-        with open(symbol_f, 'w') as f:
-            f.write(addr)
-
-    with open(token_addr_f, 'r') as f:
-        info = json.loads(f.read())
-        token_addr_to_symbol_cache[addr] = info['symbol']
-        return info['symbol']
-
-def token_addr(symbol):
-    if symbol in token_symbol_to_addr_cache:
-        return token_symbol_to_addr_cache[symbol]
-    # Always assume symbol file exists.
-    symbol_f = root_dir+'/cache/symbol.'+symbol
-    with open(symbol_f, 'r') as f:
-        return f.read()
+########################################
+# token info access
+########################################
+def token_info(addr_or_symbol):
+    info = cache.token_cache_get(addr_or_symbol)
+    if info is not None:
+        return info
+    
+    if Web3.isAddress(addr_or_symbol) == False:
+        raise Exception("Unknown new symbol: " + addr_or_symbol)
+    addr = addr_or_symbol
+    symbol = call_contract(addr, 'symbol', verbose=True)
+    name = call_contract(addr, 'name', verbose=True)
+    decimals = call_contract(addr, 'decimals', verbose=True)
+    info = cache.token_cache_set(addr, symbol, name, decimals)
+    return info
 
 def token_balance(addr_or_name, addr, **kwargs):
-    t_addr = addr_or_name
-    if Web3.isAddress(addr_or_name):
-        token_symbol(addr_or_name, **kwargs) # Cache symbol <-> balance map
-    else: # name as arg
-        t_addr = token_addr(addr_or_name)
+    info = token_info(addr_or_name)
+    t_addr = info['addr']
     ret = call_contract(t_addr, 'balanceOf', addr, **kwargs)
-    return Web3.fromWei(ret, 'ether')
+    return int(ret)/(10**(info['decimals']))
 
 def scan_balance(addr, token_addr_or_name=[], **kwargs):
     bal = { 'ETH' : Web3.fromWei(w3.eth.getBalance(addr), 'ether') }
@@ -99,7 +68,7 @@ def scan_balance(addr, token_addr_or_name=[], **kwargs):
         b = token_balance(addr_or_name, addr, **kwargs)
         bal[addr_or_name] = b
         if Web3.isAddress(addr_or_name): # Also write as symbol
-            bal[token_symbol(addr_or_name)] = b
+            bal[cache.token_cache_get(addr_or_name)['symbol']] = b
     return bal
 
 def print_balance(addr, token_addr_or_name=[]):
