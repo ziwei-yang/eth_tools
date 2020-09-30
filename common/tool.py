@@ -11,7 +11,7 @@ w3 = Web3(Web3.HTTPProvider(
 ########################################
 # Basic ABI and contract invokation.
 ########################################
-def is_verbose(**kwargs):
+def is_verbose(kwargs):
     return kwargs.get('verbose') != False
 
 def contract_abi(addr, **kwargs):
@@ -31,7 +31,7 @@ def get_contract(addr):
     return internal_contract_cache[addr]
 
 def call_contract(contract_addr, func, *args, **kwargs):
-    if is_verbose(**kwargs):
+    if is_verbose(kwargs):
         if cache.token_cache_get(contract_addr) is not None:
             symbol = cache.token_cache_get(contract_addr)['symbol']
             print("Call", symbol, func, *args)
