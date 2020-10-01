@@ -5,9 +5,35 @@ from web3 import Web3
 
 ROOT_DIR = os.environ['ETH_TOOLS_DIR']
 CACHE_DIR = ROOT_DIR + '/cache'
+RES_DIR = ROOT_DIR + '/res'
+
 for d in ['abi', 'addr', 'token', 'etherscan_tx_his']:
     if os.path.exists(CACHE_DIR + '/' + d) is False:
         os.mkdir(CACHE_DIR + '/' + d)
+
+CONTRACT_NAME_MAP = {}
+CONTRACT_NAME_MAP_FILE = RES_DIR + '/export-verified-contractaddress-opensource-license.csv'
+if os.path.exists(CONTRACT_NAME_MAP_FILE):
+    print("Loading contract addr-name")
+    with open(CONTRACT_NAME_MAP_FILE, 'r') as f:
+        for l in f.readlines():
+            segs = l.split(',')
+            if len(segs) != 3:
+                continue
+            if len(segs) != 3 or len(segs[1]) < 16 or len(segs[2]) < 3:
+                continue
+            addr = segs[1][1:-1] # Remove quotes
+            name = segs[2][1:-2] # Remove quotes and new line char.
+            if Web3.isAddress(addr):
+                CONTRACT_NAME_MAP[addr] = name
+    print(len(CONTRACT_NAME_MAP), "contract addr-name load")
+else:
+    print("No export-verified-contractaddress-opensource-license.csv found in res")
+
+def contract_name(addr):
+    if addr in CONTRACT_NAME_MAP:
+        return CONTRACT_NAME_MAP[addr]
+    return None
 
 ########################################
 # Cache for contract ABI
@@ -91,7 +117,7 @@ def addr_tx_append(addr, txs, from_blk, end_blk, **kwargs):
     latest_cached_blk = -1 
     latest_cached_txs = addr_tx_get(addr, max=1)
     if len(latest_cached_txs) > 0:
-        latest_cached_blk = latest_cached_txs[0]['blockNumber']
+        latest_cached_blk = int(latest_cached_txs[0]['blockNumber'])
     if latest_cached_blk >= from_blk:
         raise Exception("Latest blk in cached data", latest_cached_blk, "append", from_blk)
     if from_blk > end_blk:
