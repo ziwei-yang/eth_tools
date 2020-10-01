@@ -3,11 +3,16 @@ import json
 import re
 from web3 import Web3
 
+########################################
+# Cache provides a layer for other components.
+# Should not be called from outside.
+########################################
+
 ROOT_DIR = os.environ['ETH_TOOLS_DIR']
 CACHE_DIR = ROOT_DIR + '/cache'
 RES_DIR = ROOT_DIR + '/res'
 
-for d in ['abi', 'addr', 'token', 'etherscan_tx_his']:
+for d in ['contract', 'addr', 'token', 'etherscan_tx_his']:
     if os.path.exists(CACHE_DIR + '/' + d) is False:
         os.mkdir(CACHE_DIR + '/' + d)
 
@@ -30,35 +35,51 @@ if os.path.exists(CONTRACT_NAME_MAP_FILE):
 else:
     print("No export-verified-contractaddress-opensource-license.csv found in res")
 
+########################################
+# Cache for contract name
+########################################
 def contract_name(addr):
+    # Layer 1 cache
     if addr in CONTRACT_NAME_MAP:
         return CONTRACT_NAME_MAP[addr]
+    # Layer 2 file cache
+    info = contract_info(addr)
+    if info is not None:
+        CONTRACT_NAME_MAP[addr] = info['ContractName']
+        return info['ContractName']
     return None
 
 ########################################
-# Cache for contract ABI
+# Cache for contract info (ABI, SourceCode, ContractName, ...)
 ########################################
-def abi_cache_clear(addr):
-    abi_file = CACHE_DIR + '/abi/' +addr
-    if os.path.exists(abi_file):
-        os.remove(abi_file)
+CONTRACT_INFO_MAP = {}
+def contract_info_clear(addr):
+    CONTRACT_INFO_MAP[addr] = None
+    contract_f = CACHE_DIR + '/contract/' +addr
+    if os.path.exists(contract_f):
+        os.remove(contract_f)
 
-def abi_cache_get(addr):
-    abi_file = CACHE_DIR + '/abi/' +addr
-    if os.path.exists(abi_file):
-        with open(abi_file, 'r') as f:
-            return f.read()
+def contract_info(addr):
+    if addr in CONTRACT_INFO_MAP:
+        return CONTRACT_INFO_MAP[addr]
+
+    contract_f = CACHE_DIR + '/contract/' +addr
+    if os.path.exists(contract_f):
+        with open(contract_f, 'r') as f:
+            CONTRACT_INFO_MAP[addr] = info = json.loads(f.read())
+            return info
     return None
 
-def abi_cache_set(addr, abi):
-    abi_file = CACHE_DIR + '/abi/' +addr
-    with open(abi_file, 'w') as f:
-        f.write(abi)
+def contract_info_set(addr, j):
+    CONTRACT_INFO_MAP[addr] = j
+    contract_f = CACHE_DIR + '/contract/' +addr
+    with open(contract_f, 'w') as f:
+        f.write(json.dumps(j))
 
 ########################################
 # Cache for token info
 ########################################
-token_info_mem_cache = {}
+TOKEN_INFO_MAP = {}
 def token_cache_set(addr, symbol, name, decimals):
     info = {
             'symbol': symbol,
@@ -66,7 +87,7 @@ def token_cache_set(addr, symbol, name, decimals):
             'addr':   addr,
             'decimals':decimals
         }
-    token_info_mem_cache[addr] = token_info_mem_cache[symbol] = info
+    TOKEN_INFO_MAP[addr] = TOKEN_INFO_MAP[symbol] = info
 
     addr_f = CACHE_DIR + '/addr/' + addr + '.json'
     symbol_f = CACHE_DIR + '/token/' + symbol + '.json'
@@ -80,15 +101,15 @@ def token_cache_set(addr, symbol, name, decimals):
     return info
 
 def token_cache_get(addr_or_symbol):
-    if addr_or_symbol in token_info_mem_cache:
-        return token_info_mem_cache[addr_or_symbol]
+    if addr_or_symbol in TOKEN_INFO_MAP:
+        return TOKEN_INFO_MAP[addr_or_symbol]
     token_f = CACHE_DIR + '/token/' + addr_or_symbol + '.json'
     if Web3.isAddress(addr_or_symbol):
         token_f = CACHE_DIR + '/addr/' + addr_or_symbol + '.json'
     if os.path.exists(token_f):
         with open(token_f, 'r') as f:
             info = json.loads(f.read())
-            token_info_mem_cache[addr_or_symbol] = info
+            TOKEN_INFO_MAP[addr_or_symbol] = info
             return info
     return None
 
