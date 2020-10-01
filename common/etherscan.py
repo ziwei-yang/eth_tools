@@ -26,8 +26,20 @@ def api(**kwargs):
         return j['result']
     raise Exception("Failed in GET", url, "status:", j['status'],"\n", ret.text)
 
+# ABI only
 def contract_abi(addr, **kwargs):
     return api(module='contract', action='getabi', address=addr)
+
+# Fetch below data for contract:
+# SourceCode
+# ABI
+# ContractName
+# CompilerVersion
+# ConstructorArguments
+# SwarmSource
+def contract_info(addr, **kwargs):
+    info = api(module='contract', action='getsourcecode', address=addr)
+    return info[0]
 
 ########################################
 # tx querying for addr is expensive,
@@ -110,6 +122,9 @@ def _raw_addr_tx(addr, from_blk, **kwargs):
                 startblock=from_blk, endblock=to_blk, sort='desc')
         trimmed_txs, to_blk = _check_if_tx_reach_limit(txs)
         all_txs = all_txs + trimmed_txs
+        if 'max' in kwargs:
+            if kwargs['max'] <= len(all_txs):
+                break
     return all_txs
 
 # ERC20 event in etherscan:
@@ -127,6 +142,9 @@ def _raw_addr_erc20_tx(addr, from_blk, **kwargs):
                 startblock=from_blk, endblock=to_blk, sort='desc')
         trimmed_txs, to_blk = _check_if_tx_reach_limit(txs)
         all_txs = all_txs + trimmed_txs
+        if 'max' in kwargs:
+            if kwargs['max'] <= len(all_txs):
+                break
     return all_txs
 
 # Internal event in etherscan:
@@ -146,6 +164,9 @@ def _raw_addr_internal_tx(addr, from_blk, **kwargs):
                 startblock=from_blk, endblock=to_blk, sort='desc')
         trimmed_txs, to_blk = _check_if_tx_reach_limit(txs)
         all_txs = all_txs + trimmed_txs
+        if 'max' in kwargs:
+            if kwargs['max'] <= len(all_txs):
+                break
     return all_txs
 
 # Assume TX list is ordered by nonce+blockNUmber, desc
@@ -155,7 +176,7 @@ def _check_if_tx_reach_limit(txs):
     if len(txs) < 10000:
         return (txs, None)
     oldest_blk = int(txs[-1]['blockNumber'])
-    trimmed_txs = filter(lambda tx: int(tx['blockNumber']) > oldest_blk, txs)
+    trimmed_txs = list(filter(lambda tx: int(tx['blockNumber']) > oldest_blk, txs))
     print("Etherscan result reached max 10000, trimmed to", len(trimmed_txs), "oldest blk", oldest_blk)
     return (trimmed_txs, oldest_blk)
 
