@@ -15,20 +15,20 @@ def is_verbose(kwargs):
     return kwargs.get('verbose') != False
 
 def contract_abi(addr, **kwargs):
-    abi = cache.abi_cache_get(addr)
-    if abi is not None:
-        return abi
-    abi = etherscan.contract_abi(addr, **kwargs)
-    cache.abi_cache_set(addr, abi)
-    return abi
+    contract_info = cache.contract_info(addr)
+    if contract_info is not None:
+        return contract_info['ABI']
+    info = etherscan.contract_info(addr)
+    cache.contract_info_set(addr, info)
+    return info['ABI']
 
-internal_contract_cache = {}
+CONTRACT_MAP = {}
 def get_contract(addr):
-    if addr in internal_contract_cache:
-        return internal_contract_cache[addr]
+    if addr in CONTRACT_MAP:
+        return CONTRACT_MAP[addr]
     contract = w3.eth.contract(address=addr, abi=contract_abi(addr))
-    internal_contract_cache[addr] = contract
-    return internal_contract_cache[addr]
+    CONTRACT_MAP[addr] = contract
+    return CONTRACT_MAP[addr]
 
 def call_contract(contract_addr, func, *args, **kwargs):
     if is_verbose(kwargs):
