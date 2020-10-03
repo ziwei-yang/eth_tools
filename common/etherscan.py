@@ -20,10 +20,14 @@ def api(**kwargs):
     url = 'https://api.etherscan.io/api?' + arg_str
     ret = requests.get(url)
     j = json.loads(ret.text)
+    print('<-- etherscan', j['status'], j['message'])
     if j['status'] == "1":
         return j['result']
-    elif j['status'] == "0" and j['message'] == 'No transactions found':
-        return j['result']
+    elif j['status'] == "0":
+        if j['message'] == 'No transactions found':
+            return j['result']
+        if j['message'].startswith('Query Timeout'): # Retry
+            return api(**kwargs)
     raise Exception("Failed in GET", url, "status:", j['status'],"\n", ret.text)
 
 # ABI only
@@ -69,38 +73,78 @@ def addr_tx_update(addr, **kwargs):
     internal_txs = _raw_addr_internal_tx(addr, from_blk, **kwargs)
 
     # Normal tx might not include erc20 events
+    # ERC20 events and internal TXs might not be in normal TXs
     if is_verbose(kwargs):
         print("Get", len(normal_txs), "TX from", addr)
         print("Get", len(erc20_txs), "ERC20 events")
         print("Get", len(internal_txs), "internal events")
-    max_blk = 0
-    for tx in normal_txs: # Might match multiple erc_tx
-        if int(tx['blockNumber']) >= max_blk:
-            max_blk = int(tx['blockNumber'])
-        match_erc20_txs = [erc_tx for erc_tx in erc20_txs if tx['hash'] == erc_tx['hash']]
-        if is_verbose(kwargs) and len(match_erc20_txs) > 0:
-            print("\t", len(match_erc20_txs), "ERC20 events", tx['hash'])
-        events = []
-        for erc_tx in match_erc20_txs:
-            erc20_event = {}
-            for k in ['from', 'to', 'value', 'tokenName', 'tokenSymbol', 'tokenDecimal']:
-                erc20_event[k] = erc_tx[k]
-            events.append(erc20_event)
-        tx['_erc20_events'] = events
 
-        match_int_txs = [int_tx for int_tx in internal_txs if tx['hash'] == int_tx['hash']]
-        if is_verbose(kwargs) and len(match_int_txs) > 0:
-            print("\t", len(match_int_txs), "internal events", tx['hash'])
-        events = []
-        for int_tx in match_int_txs:
-            int_event = {}
-            for k in ['from', 'to', 'value', 'isError', 'input', 'contractAddress']:
-                int_event[k] = int_tx[k]
-            events.append(int_event)
-        tx['_internal_txs'] = events
+    tx_by_hash = {} # Collect all info for TX
+    # Scan normal_txs, then erc20_txs and internal_txs to make sure max info is extract for TX.
+    for tx in normal_txs:
+        tx_by_hash[tx['hash']] = tx
+    for erc20_tx in erc20_txs:
+        i = erc20_tx['hash']
+        normal_tx = {}
+        if i not in tx_by_hash: # Extract basic TX info.
+            for k in ['blockNumber', 'timeStamp', 'confirmations', 'hash',
+                'nonce', 'blockHash', 'gas', 'gasPrice', 'cumulativeGasUsed',
+                'gasUsed']:
+                normal_tx[k] = erc20_tx[k]
+            tx_by_hash[i] = normal_tx
+        else:
+            normal_tx = tx_by_hash[i]
+        # Append data into _erc20_events
+        if '_erc20_events' not in normal_tx:
+            normal_tx['_erc20_events'] = []
+        erc20_event = {}
+        for k in ['from', 'to', 'value', 'tokenName', 'tokenSymbol', 'tokenDecimal']:
+            erc20_event[k] = erc20_tx[k]
+        normal_tx['_erc20_events'].append(erc20_event)
+    for int_tx in internal_txs:
+        i = int_tx['hash']
+        normal_tx = {}
+        if i not in tx_by_hash: # Extract basic TX info.
+            for k in ['blockNumber', 'timeStamp', 'hash', 'gas', 'gasUsed']:
+                normal_tx[k] = erc20_tx[k]
+            tx_by_hash[i] = normal_tx
+        else:
+            normal_tx = tx_by_hash[i]
+        # Append data into _erc20_events
+        if '_internal_txs' not in normal_tx:
+            normal_tx['_internal_txs'] = []
+        int_event = {}
+        for k in ['from', 'to', 'value', 'isError', 'input', 'contractAddress']:
+            int_event[k] = int_tx[k]
+        normal_tx['_internal_txs'].append(int_event)
 
-    # Save TX into cache.
-    cache.addr_tx_append(addr, normal_txs, from_blk, max_blk, **kwargs)
+    # Sort normal_tx by blockNumber
+    txs = sorted(tx_by_hash.values(), key=lambda tx: int(tx['blockNumber']))
+
+    # Save txs each 1000 per file.
+    ct = 0
+    max_blk = from_blk
+    save_txs = []
+    for tx in txs:
+        ct = ct + 1
+        if int(tx['blockNumber']) == max_blk:
+            save_txs.append(tx) # Keep saving TX in same block.
+            continue
+        elif int(tx['blockNumber']) < max_blk:
+            raise Exception("tx should be sorted by blockNumber")
+        # Larger blockNumber happened, save to cache if needed.
+        max_blk = int(tx['blockNumber'])
+        if ct >= 1000:
+            save_txs.reverse()
+            cache.addr_tx_append(addr, save_txs, int(save_txs[0]['blockNumber']), max_blk, **kwargs)
+            save_txs = []
+            ct = 0
+        save_txs.append(tx)
+    # Save last batch.
+    if ct > 0:
+        save_txs.reverse()
+        cache.addr_tx_append(addr, save_txs, int(save_txs[0]['blockNumber']), max_blk, **kwargs)
+
     return normal_txs
 
 # Normal TX in etherscan:
@@ -191,7 +235,7 @@ def format_tx(j, addr=None):
             j['hash']
         ]
     lines = [' '.join(l)]
-    if int(j['value']) > 0:
+    if 'value' in j and int(j['value']) > 0:
         l = [
                 "\t",
                 'ETH'.ljust(12),
@@ -204,7 +248,9 @@ def format_tx(j, addr=None):
                 ''.ljust(20)
             ]
     # From - To
-    if addr is not None and addr.lower() == j['from'].lower():
+    if 'from' not in j or 'to' not in j:
+        l.append('? --> ?')
+    elif addr is not None and addr.lower() == j['from'].lower():
         l.append('-->')
         l.append(render_addr(j['to']))
     elif addr is not None and addr.lower() == j['to'].lower():
@@ -217,7 +263,9 @@ def format_tx(j, addr=None):
     l.append('Gas')
     l.append(str(Web3.fromWei(int(j['gasPrice']), 'gwei')).ljust(5))
     # Status
-    if j['isError'] == '0':
+    if 'isError' not in j:
+        l.append(' ')
+    elif j['isError'] == '0':
         if j['txreceipt_status'] == '1':
             l.append(' ')
         else:
@@ -226,51 +274,53 @@ def format_tx(j, addr=None):
         l.append('X')
     lines.append(' '.join(l))
 
-    if len(j['contractAddress']) > 0:
+    if 'contractAddress' in j and len(j['contractAddress']) > 0:
         lines.append('Contract '+j['contractAddress'])
 
     # lines.append(json.dumps(j)) # Debug
 
     # ERC20 events
-    for e in j['_erc20_events']:
-        l = [
-                "\t",
-                e['tokenSymbol'].ljust(12),
-                ("%.8f" % (int(e['value']) / (10**int(e['tokenDecimal'])))).ljust(20)
-            ]
-        if addr is not None and addr.lower() == e['from'].lower():
-            l.append('-->')
-            l.append(render_addr(j['to']))
-        elif addr is not None and addr.lower() == e['to'].lower():
-            l.append('<--')
-            l.append(render_addr(j['from']))
-        else: # Might happen in ERC20 event
-            l.append(render_addr(j['from']))
-            l.append(render_addr(j['to']))
-        lines.append(' '.join(l))
+    if '_erc20_events' in j:
+        for e in j['_erc20_events']:
+            l = [
+                    "\t",
+                    e['tokenSymbol'].ljust(12),
+                    ("%.8f" % (int(e['value']) / (10**int(e['tokenDecimal'])))).ljust(20)
+                ]
+            if addr is not None and addr.lower() == e['from'].lower():
+                l.append('-->')
+                l.append(render_addr(e['to']))
+            elif addr is not None and addr.lower() == e['to'].lower():
+                l.append('<--')
+                l.append(render_addr(e['from']))
+            else: # Might happen in ERC20 event
+                l.append(render_addr(e['from']))
+                l.append(render_addr(e['to']))
+            lines.append(' '.join(l))
 
     # Internal transactions
-    for e in j['_internal_txs']:
-        l = [
-                "\t",
-                'ETH'.ljust(12),
-                ("%.8f" % (Web3.fromWei(int(e['value']), 'ether'))).ljust(20)
-            ]
-        if addr is not None and addr.lower() == e['from'].lower():
-            l.append('-->')
-            l.append(render_addr(j['to']))
-        elif addr is not None and addr.lower() == e['to'].lower():
-            l.append('<--')
-            l.append(render_addr(j['from']))
-        else: # Might happen in ERC20 event
-            l.append(render_addr(j['from']))
-            l.append(render_addr(j['to']))
-        # Status
-        if e['isError'] == '0':
-            l.append(' ')
-        else:
-            l.append('X')
-        lines.append(' '.join(l))
+    if '_internal_txs' in j:
+        for e in j['_internal_txs']:
+            l = [
+                    "\t",
+                    'ETH'.ljust(12),
+                    ("%.8f" % (Web3.fromWei(int(e['value']), 'ether'))).ljust(20)
+                ]
+            if addr is not None and addr.lower() == e['from'].lower():
+                l.append('-->')
+                l.append(render_addr(j['to']))
+            elif addr is not None and addr.lower() == e['to'].lower():
+                l.append('<--')
+                l.append(render_addr(j['from']))
+            else: # Might happen in ERC20 event
+                l.append(render_addr(j['from']))
+                l.append(render_addr(j['to']))
+            # Status
+            if e['isError'] == '0':
+                l.append(' ')
+            else:
+                l.append('X')
+            lines.append(' '.join(l))
 
     return "\n".join(lines)
 

@@ -128,7 +128,8 @@ def addr_tx_get(addr, **kwargs):
     txs = []
     for f1 in files:
         with open(dir_p+'/'+f1, 'r') as f:
-            txs = txs + json.loads(f.read())
+            for l in f.readlines():
+                txs.append(json.loads(l))
             if len(txs) >= kwargs.get('max') or 1000:
                 break
     return txs # Sort txs again?
@@ -148,6 +149,8 @@ def addr_tx_append(addr, txs, from_blk, end_blk, **kwargs):
     if os.path.exists(dir_p) is False:
         os.mkdir(dir_p)
     f_path = CACHE_DIR+'/etherscan_tx_his/'+addr+'/'+str(from_blk)+'.'+str(end_blk)+'.json'
-    print("Append TX to", addr, from_blk, '->', end_blk)
+    print("Append", len(txs), "TX to", addr, from_blk, '->', end_blk)
     with open(f_path, 'w') as f:
-        f.write(json.dumps(txs))
+        for tx in txs:
+            f.write(json.dumps(tx))
+            f.write("\n")
