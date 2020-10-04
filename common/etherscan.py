@@ -3,7 +3,7 @@ import re
 import requests
 import json
 
-from . import cache
+from . import cache, logger
 from .logger import log, debug
 
 def is_verbose(kwargs):
@@ -273,6 +273,7 @@ def format_tx(j, addr=None):
     l.append('Gas')
     l.append(str(Web3.fromWei(int(j['gasPrice']), 'gwei')).ljust(5))
     # Status
+    is_error = False
     if 'isError' not in j:
         l.append(' ')
     elif j['isError'] == '0':
@@ -282,7 +283,10 @@ def format_tx(j, addr=None):
             l.append('…')
     else:
         l.append('X')
+        is_error = True
     lines.append(' '.join(l))
+    if is_error:
+        lines = map(lambda s: logger.red(s), lines)
 
     if 'contractAddress' in j and len(j['contractAddress']) > 0:
         lines.append('Contract '+j['contractAddress'])
@@ -303,6 +307,8 @@ def format_tx(j, addr=None):
             elif addr is not None and addr.lower() == e['to'].lower():
                 l.append('<--')
                 l.append(render_addr(e['from']))
+                # Render incoming in green
+                l = list(map(lambda s: logger.light_green(s), l))
             else: # Might happen in ERC20 event
                 l.append(render_addr(e['from']))
                 l.append(render_addr(e['to']))
@@ -322,6 +328,8 @@ def format_tx(j, addr=None):
             elif addr is not None and addr.lower() == e['to'].lower():
                 l.append('<--')
                 l.append(render_addr(j['from']))
+                # Render incoming in green
+                l = list(map(lambda s: logger.light_green(s), l))
             else: # Might happen in ERC20 event
                 l.append(render_addr(j['from']))
                 l.append(render_addr(j['to']))
@@ -335,6 +343,14 @@ def format_tx(j, addr=None):
     return "\n".join(lines)
 
 def render_addr(addr):
+    if addr == '0x0000000000000000000000000000000000000000':
+        return '0x00'
     if cache.contract_name(addr) is not None:
-        return cache.contract_name(addr).ljust(len(addr))
+        if len(cache.contract_name(addr)) > 0:
+            return cache.contract_name(addr).ljust(len(addr))
+    info = contract_info(addr)
+    if info is not None:
+        if info['ContractName'] is not None:
+            if len(info['ContractName']) > 0:
+                return info['ContractName']
     return addr
