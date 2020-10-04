@@ -4,13 +4,14 @@ import requests
 import json
 
 from . import cache
+from .logger import log, debug
 
 def is_verbose(kwargs):
     return kwargs.get('verbose') != False
 
 def api(**kwargs):
     if is_verbose(kwargs):
-        print("--> etherscan", kwargs)
+        debug("--> etherscan", kwargs)
     kwargs['apikey'] = os.environ['ETHERSCAN_KEY']
     args = filter(lambda kv: kv[0] != 'verbose', kwargs.items())
     arg_str = '&'.join(
@@ -20,7 +21,7 @@ def api(**kwargs):
     url = 'https://api.etherscan.io/api?' + arg_str
     ret = requests.get(url)
     j = json.loads(ret.text)
-    print('<-- etherscan', j['status'], j['message'])
+    debug('<-- etherscan', j['status'], j['message'])
     if j['status'] == "1":
         return j['result']
     elif j['status'] == "0":
@@ -30,9 +31,9 @@ def api(**kwargs):
             return api(**kwargs)
     raise Exception("Failed in GET", url, "status:", j['status'],"\n", ret.text)
 
-# ABI only
-def contract_abi(addr, **kwargs):
-    return api(module='contract', action='getabi', address=addr)
+# ABI only, use contract_info() instead.
+# def contract_abi(addr, **kwargs):
+#     return api(module='contract', action='getabi', address=addr)
 
 # Fetch below data for contract:
 # SourceCode
@@ -42,8 +43,18 @@ def contract_abi(addr, **kwargs):
 # ConstructorArguments
 # SwarmSource
 def contract_info(addr, **kwargs):
+    contract_info = cache.contract_info(addr)
+    if contract_info is not None:
+        if len(contract_info) == 0: # Queried but no result.
+            return None
+        return contract_info
     info = api(module='contract', action='getsourcecode', address=addr)
-    return info[0]
+    if len(info) == 0: # Queried but no result.
+        cache.contract_info_set(addr, {})
+        return None
+    info = info[0]
+    cache.contract_info_set(addr, info)
+    return info
 
 ########################################
 # tx querying for addr is expensive,
@@ -61,12 +72,12 @@ def addr_tx_update(addr, **kwargs):
         latest_cached_blk = latest_cached_txs[0]['blockNumber']
     from_blk = int(latest_cached_blk) + 1
     if is_verbose(kwargs):
-        print("Update TX for", addr, "from", from_blk)
+        debug("Update TX for", addr, "from", from_blk)
 
     normal_txs = _raw_addr_tx(addr, from_blk, **kwargs)
     if len(normal_txs) == 0:
         if is_verbose(kwargs):
-            print("Get", len(normal_txs), "TX from", addr)
+            debug("Get", len(normal_txs), "TX from", addr)
         return []
 
     erc20_txs = _raw_addr_erc20_tx(addr, from_blk, **kwargs)
@@ -75,9 +86,9 @@ def addr_tx_update(addr, **kwargs):
     # Normal tx might not include erc20 events
     # ERC20 events and internal TXs might not be in normal TXs
     if is_verbose(kwargs):
-        print("Get", len(normal_txs), "TX from", addr)
-        print("Get", len(erc20_txs), "ERC20 events")
-        print("Get", len(internal_txs), "internal events")
+        debug("Get", len(normal_txs), "TX from", addr)
+        debug("Get", len(erc20_txs), "ERC20 events")
+        debug("Get", len(internal_txs), "internal events")
 
     tx_by_hash = {} # Collect all info for TX
     # Scan normal_txs, then erc20_txs and internal_txs to make sure max info is extract for TX.
@@ -221,17 +232,16 @@ def _check_if_tx_reach_limit(txs):
         return (txs, None)
     oldest_blk = int(txs[-1]['blockNumber'])
     trimmed_txs = list(filter(lambda tx: int(tx['blockNumber']) > oldest_blk, txs))
-    print("Etherscan result reached max 10000, trimmed to", len(trimmed_txs), "oldest blk", oldest_blk)
+    debug("Etherscan result reached max 10000, trimmed to", len(trimmed_txs), "oldest blk", oldest_blk)
     return (trimmed_txs, oldest_blk)
 
-from datetime import datetime
+import datetime
+import time
 from web3 import Web3
 def format_tx(j, addr=None):
-    offset = 8 # GMT+8
     # Time
     l = [
-            datetime.utcfromtimestamp(offset*3600+int(j['timeStamp'])).strftime('%Y%m%d %H:%M:%S'),
-            '+0800',
+            datetime.datetime.utcfromtimestamp(int(j['timeStamp'])-time.timezone).strftime('%Y%m%d %H:%M:%S'),
             j['hash']
         ]
     lines = [' '.join(l)]

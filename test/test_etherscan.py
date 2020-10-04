@@ -1,5 +1,5 @@
 import unittest
-from eth_tool.common import etherscan, cache, tool
+from eth_tool.common import etherscan, cache, web3_eth
 
 class TestEtherscanAPI(unittest.TestCase):
     PICKLE_TOKEN = '0x429881672B9AE42b8EbA0E26cD9C73711b891Ca5'
@@ -9,7 +9,7 @@ class TestEtherscanAPI(unittest.TestCase):
     def test_contract_info(self):
         info = etherscan.contract_info(self.PICKLE_TOKEN)
         print(self.PICKLE_TOKEN, 'name', info['ContractName'])
-        abi_cached = tool.contract_abi(self.PICKLE_TOKEN)
+        abi_cached = web3_eth.contract_abi(self.PICKLE_TOKEN)
         self.assertEqual(info['ABI'], abi_cached)
 
     def test_tx_his(self):

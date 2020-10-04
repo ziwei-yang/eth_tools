@@ -3,6 +3,8 @@ import json
 import re
 from web3 import Web3
 
+from .logger import log, debug
+
 ########################################
 # Cache provides a layer for other components.
 # Should not be called from outside.
@@ -19,7 +21,7 @@ for d in ['contract', 'addr', 'token', 'etherscan_tx_his']:
 CONTRACT_NAME_MAP = {}
 CONTRACT_NAME_MAP_FILE = RES_DIR + '/export-verified-contractaddress-opensource-license.csv'
 if os.path.exists(CONTRACT_NAME_MAP_FILE):
-    print("Loading contract addr-name")
+    debug("Loading contract addr-name")
     with open(CONTRACT_NAME_MAP_FILE, 'r') as f:
         for l in f.readlines():
             segs = l.split(',')
@@ -31,9 +33,9 @@ if os.path.exists(CONTRACT_NAME_MAP_FILE):
             name = segs[2][1:-2] # Remove quotes and new line char.
             if Web3.isAddress(addr):
                 CONTRACT_NAME_MAP[addr] = name
-    print(len(CONTRACT_NAME_MAP), "contract addr-name load")
+    debug(len(CONTRACT_NAME_MAP), "contract addr-name load")
 else:
-    print("No export-verified-contractaddress-opensource-license.csv found in res")
+    debug("No export-verified-contractaddress-opensource-license.csv found in res")
 
 ########################################
 # Cache for contract name
@@ -149,7 +151,7 @@ def addr_tx_append(addr, txs, from_blk, end_blk, **kwargs):
     if os.path.exists(dir_p) is False:
         os.mkdir(dir_p)
     f_path = CACHE_DIR+'/etherscan_tx_his/'+addr+'/'+str(from_blk)+'.'+str(end_blk)+'.json'
-    print("Append", len(txs), "TX to", addr, from_blk, '->', end_blk)
+    debug("Append", len(txs), "TX to", addr, from_blk, '->', end_blk)
     with open(f_path, 'w') as f:
         for tx in txs:
             f.write(json.dumps(tx))

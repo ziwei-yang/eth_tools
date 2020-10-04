@@ -1,6 +1,6 @@
 import sys
 import json
-from eth_tool.common import tool, cache, etherscan
+from eth_tool.common import web3_eth, cache, etherscan
 
 addr = sys.argv[1]
 max_num = 10

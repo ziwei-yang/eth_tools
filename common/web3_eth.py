@@ -4,6 +4,7 @@ from web3 import Web3
 
 from . import etherscan
 from . import cache
+from .logger import log, debug
 
 w3 = Web3(Web3.HTTPProvider(
     'https://mainnet.infura.io/v3/' + os.environ['INFURA_ID']))
@@ -15,11 +16,7 @@ def is_verbose(kwargs):
     return kwargs.get('verbose') != False
 
 def contract_abi(addr, **kwargs):
-    contract_info = cache.contract_info(addr)
-    if contract_info is not None:
-        return contract_info['ABI']
     info = etherscan.contract_info(addr)
-    cache.contract_info_set(addr, info)
     return info['ABI']
 
 CONTRACT_MAP = {}
@@ -34,10 +31,19 @@ def call_contract(contract_addr, func, *args, **kwargs):
     if is_verbose(kwargs):
         if cache.token_cache_get(contract_addr) is not None:
             symbol = cache.token_cache_get(contract_addr)['symbol']
-            print("Call", symbol, func, *args)
+            debug("Call", symbol, func, *args)
         else:
-            print("Call", contract_addr, func, *args)
+            debug("Call", contract_addr, func, *args)
     return get_contract(contract_addr).functions[func](*args).call()
+
+########################################
+# Other basic ETH APIs.
+########################################
+def eth():
+    return w3.eth
+
+def getCode(addr):
+    return Web3.toHex(w3.eth.getCode(addr))
 
 ########################################
 # token info access
@@ -73,7 +79,7 @@ def scan_balance(addr, token_addr_or_name=[], **kwargs):
 
 def print_balance(addr, token_addr_or_name=[]):
     bal_map = scan_balance(addr, token_addr_or_name)
-    print('----', 'Bal', addr, '----')
+    log('----', 'Bal', addr, '----')
     for k in bal_map:
         if Web3.isAddress(k) == False:
-            print(k.ljust(12), bal_map[k])
+            log(k.ljust(12), bal_map[k])
