@@ -57,7 +57,25 @@ def magenta(s):
 def cyan(s):
     return fg_cyan + s + style_reset
 def white(s):
-    return fg_white+ s + style_reset
+    return fg_white + s + style_reset
+
+def light_black(s):
+    return fg_lightblack + s + style_reset
+def light_red(s):
+    return fg_lightred + s + style_reset
+def light_green(s):
+    return fg_lightgreen + s + style_reset
+def light_yellow(s):
+    return fg_lightyellow + s + style_reset
+def light_blue(s):
+    return fg_lightblue + s + style_reset
+def light_magenta(s):
+    return fg_lightmagenta + s + style_reset
+def light_cyan(s):
+    return fg_lightcyan + s + style_reset
+def light_white(s):
+    return fg_lightwhite + s + style_reset
+
 def on_black(s):
     return bg_black + s + style_reset
 def on_red(s):
