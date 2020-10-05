@@ -1,10 +1,11 @@
 import os
 import json
+import web3
 from web3 import Web3
 
 from . import etherscan
 from . import cache
-from .logger import log, debug
+from .logger import log, debug, error
 
 w3 = Web3(Web3.HTTPProvider(
     'https://mainnet.infura.io/v3/' + os.environ['INFURA_ID']))
@@ -28,6 +29,9 @@ def get_contract(addr):
     return CONTRACT_MAP[addr]
 
 def call_contract(contract_addr, func, *args, **kwargs):
+    if etherscan.contract_info(contract_addr) is None:
+        error("No contract info", contract_addr)
+        return None
     if is_verbose(kwargs):
         if cache.token_cache_get(contract_addr) is not None:
             symbol = cache.token_cache_get(contract_addr)['symbol']
@@ -65,8 +69,13 @@ def token_info(addr_or_symbol):
 def token_balance(addr_or_name, addr, **kwargs):
     info = token_info(addr_or_name)
     t_addr = info['addr']
-    ret = call_contract(t_addr, 'balanceOf', addr, **kwargs)
-    return int(ret)/(10**(info['decimals']))
+    try:
+        ret = call_contract(t_addr, 'balanceOf', addr, **kwargs)
+        if ret is None:
+            return -1
+        return int(ret)/(10**(info['decimals']))
+    except web3.exceptions.ABIFunctionNotFound:
+        return -1
 
 def scan_balance(addr, token_addr_or_name=[], **kwargs):
     bal = { 'ETH' : Web3.fromWei(w3.eth.getBalance(addr), 'ether') }
@@ -82,4 +91,5 @@ def print_balance(addr, token_addr_or_name=[]):
     log('----', 'Bal', addr, '----')
     for k in bal_map:
         if Web3.isAddress(k) == False:
-            log(k.ljust(12), bal_map[k])
+            if bal_map[k] != 0:
+                log(k.ljust(12), bal_map[k])
