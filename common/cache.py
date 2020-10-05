@@ -130,7 +130,7 @@ def addr_tx_get(addr, **kwargs):
     if os.path.exists(dir_p) is False:
         os.mkdir(dir_p)
     files = [f for f in os.listdir(dir_p) if re.match(r"^[0-9]{1,8}\.[0-9]{1,10}.json$", f)]
-    files.sort(reverse=True) # From latest to oldest
+    files.sort(key=lambda f: int(f.split('.')[0]), reverse=True) # From latest to oldest
     # Parse from file until max reached.
     txs = []
     max_num = kwargs.get('max') or -1
