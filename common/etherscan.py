@@ -1,7 +1,9 @@
 import os
-import re
 import requests
 import json
+import datetime
+import time
+from web3 import Web3
 
 from . import cache, logger
 from .logger import log, debug
@@ -53,6 +55,9 @@ def contract_info(addr, **kwargs):
         cache.contract_info_set(addr, {})
         return None
     info = info[0]
+    if len(info['SourceCode']) == 0: # Contract source code not verified.
+        cache.contract_info_set(addr, {})
+        return None
     cache.contract_info_set(addr, info)
     return info
 
@@ -109,7 +114,7 @@ def addr_tx_update(addr, **kwargs):
         if '_erc20_events' not in normal_tx:
             normal_tx['_erc20_events'] = []
         erc20_event = {}
-        for k in ['from', 'to', 'value', 'tokenName', 'tokenSymbol', 'tokenDecimal']:
+        for k in ['from', 'to', 'value', 'tokenName', 'tokenSymbol', 'tokenDecimal', 'contractAddress']:
             erc20_event[k] = erc20_tx[k]
         normal_tx['_erc20_events'].append(erc20_event)
     for int_tx in internal_txs:
@@ -188,7 +193,7 @@ def _raw_addr_tx(addr, from_blk, **kwargs):
 # gas gasPrice cumulativeGasUsed gasUsed
 # from to ( of ERC20 )
 # value ( of ERC20 )
-# tokenName tokenSymbol tokenDecimal
+# tokenName tokenSymbol tokenDecimal contractAddress
 def _raw_addr_erc20_tx(addr, from_blk, **kwargs):
     all_txs = []
     to_blk = 99999999
@@ -235,9 +240,27 @@ def _check_if_tx_reach_limit(txs):
     debug("Etherscan result reached max 10000, trimmed to", len(trimmed_txs), "oldest blk", oldest_blk)
     return (trimmed_txs, oldest_blk)
 
-import datetime
-import time
-from web3 import Web3
+def involved_tokens(tx_list):
+    tokens = {}
+    for j in tx_list:
+        if '_erc20_events' not in j:
+            continue
+        for e in j['_erc20_events']:
+            contract = Web3.toChecksumAddress(e['contractAddress'])
+            if contract in tokens:
+                continue
+            tokens[contract] = {}
+            for k in ['tokenName', 'tokenSymbol', 'tokenDecimal', 'contractAddress']:
+                tokens[contract][k] = e[k]
+            tokens[contract]['tokenDecimal'] = int(tokens[contract]['tokenDecimal'])
+            cache.token_cache_set(contract, e['tokenSymbol'], e['tokenName'], int(e['tokenDecimal']))
+    return tokens
+
+def tx_tokens(tx):
+    if '_erc20_events' not in tx:
+        return []
+    return list(set(map(lambda e: e['tokenSymbol'], tx['_erc20_events'])))
+
 def format_tx(j, addr=None):
     # Time
     l = [
@@ -260,18 +283,29 @@ def format_tx(j, addr=None):
     # From - To
     if 'from' not in j or 'to' not in j:
         l.append('? --> ?')
-    elif addr is not None and addr.lower() == j['from'].lower():
-        l.append('-->')
-        l.append(render_addr(j['to']))
-    elif addr is not None and addr.lower() == j['to'].lower():
-        l.append('<--')
-        l.append(render_addr(j['from']))
+    elif addr is not None:
+        if addr.lower() == j['from'].lower() and addr.lower() == j['to'].lower():
+            if j.get('input') == '0x':
+                l.append('-x-')
+                l.append('SELF cancel TX'.ljust(len(addr)))
+            else:
+                l.append('---')
+                l.append('SELF'.ljust(len(addr)))
+        elif addr is not None and addr.lower() == j['from'].lower():
+            l.append('-->')
+            l.append(render_addr(j['to']))
+        elif addr is not None and addr.lower() == j['to'].lower():
+            l.append('<--')
+            l.append(render_addr(j['from']))
     else: # Should not happen
         l.append(render_addr(j['from']))
         l.append(render_addr(j['to']))
     # Gas price
     l.append('Gas')
-    l.append(str(Web3.fromWei(int(j['gasPrice']), 'gwei')).ljust(5))
+    if 'gasPrice' in j:
+        l.append(str(Web3.fromWei(int(j['gasPrice']), 'gwei')).ljust(5))
+    else:
+        l.append(logger.on_red('??'.ljust(5)))
     # Status
     is_error = False
     if 'isError' not in j:
@@ -324,15 +358,15 @@ def format_tx(j, addr=None):
                 ]
             if addr is not None and addr.lower() == e['from'].lower():
                 l.append('-->')
-                l.append(render_addr(j['to']))
+                l.append(render_addr(e['to']))
             elif addr is not None and addr.lower() == e['to'].lower():
                 l.append('<--')
-                l.append(render_addr(j['from']))
+                l.append(render_addr(e['from']))
                 # Render incoming in green
                 l = list(map(lambda s: logger.light_green(s), l))
             else: # Might happen in ERC20 event
-                l.append(render_addr(j['from']))
-                l.append(render_addr(j['to']))
+                l.append(render_addr(e['from']))
+                l.append(render_addr(e['to']))
             # Status
             if e['isError'] == '0':
                 l.append(' ')
