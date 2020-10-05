@@ -3,7 +3,7 @@ import json
 import re
 from web3 import Web3
 
-from .logger import log, debug
+from .logger import log, debug, error
 
 ########################################
 # Cache provides a layer for other components.
@@ -47,8 +47,11 @@ def contract_name(addr):
     # Layer 2 file cache
     info = contract_info(addr)
     if info is not None:
-        CONTRACT_NAME_MAP[addr] = info['ContractName']
-        return info['ContractName']
+        if 'ContractName' in info:
+            CONTRACT_NAME_MAP[addr] = info['ContractName']
+            return info['ContractName']
+        else:
+            error("No ContractName in", addr, info)
     return None
 
 ########################################
@@ -83,6 +86,7 @@ def contract_info_set(addr, j):
 ########################################
 TOKEN_INFO_MAP = {}
 def token_cache_set(addr, symbol, name, decimals):
+    addr = Web3.toChecksumAddress(addr)
     info = {
             'symbol': symbol,
             'name':   name,
@@ -121,22 +125,27 @@ def token_cache_get(addr_or_symbol):
 # Cache history tx in cache/etherscan_tx_his/addr/$from_blk.$to_blk.json
 ########################################
 def addr_tx_get(addr, **kwargs):
+    addr = Web3.toChecksumAddress(addr)
     dir_p = CACHE_DIR + '/etherscan_tx_his/' + addr
     if os.path.exists(dir_p) is False:
         os.mkdir(dir_p)
-    files = [f for f in os.listdir(dir_p) if re.match(r"^[0-9]{1,8}\.[0-9]{8,10}.json$", f)]
+    files = [f for f in os.listdir(dir_p) if re.match(r"^[0-9]{1,8}\.[0-9]{1,10}.json$", f)]
     files.sort(reverse=True) # From latest to oldest
     # Parse from file until max reached.
     txs = []
+    max_num = kwargs.get('max') or -1
+    if len(files) == 0:
+        debug("No file exists", "cache/etherscan_tx_his/"+addr)
     for f1 in files:
         with open(dir_p+'/'+f1, 'r') as f:
             for l in f.readlines():
                 txs.append(json.loads(l))
-            if len(txs) >= kwargs.get('max') or 1000:
+            if max_num > 0 and len(txs) >= max_num:
                 break
     return txs # Sort txs again?
 
 def addr_tx_append(addr, txs, from_blk, end_blk, **kwargs):
+    addr = Web3.toChecksumAddress(addr)
     # Defensive check.
     latest_cached_blk = -1 
     latest_cached_txs = addr_tx_get(addr, max=1)
