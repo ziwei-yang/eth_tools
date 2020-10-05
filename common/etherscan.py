@@ -140,7 +140,8 @@ def addr_tx_update(addr, **kwargs):
     # Save txs each 1000 per file.
     ct = 0
     max_blk = from_blk
-    save_txs = []
+    ttl_save_txs = [] # Order by timestamp desc.
+    save_txs = [] # Order by timestamp asc until reversed.
     for tx in txs:
         ct = ct + 1
         if int(tx['blockNumber']) == max_blk:
@@ -153,6 +154,7 @@ def addr_tx_update(addr, **kwargs):
         if ct >= 1000:
             save_txs.reverse()
             cache.addr_tx_append(addr, save_txs, int(save_txs[0]['blockNumber']), max_blk, **kwargs)
+            ttl_save_txs = save_txs + ttl_save_txs
             save_txs = []
             ct = 0
         save_txs.append(tx)
@@ -160,8 +162,9 @@ def addr_tx_update(addr, **kwargs):
     if ct > 0:
         save_txs.reverse()
         cache.addr_tx_append(addr, save_txs, int(save_txs[0]['blockNumber']), max_blk, **kwargs)
+        ttl_save_txs = save_txs + ttl_save_txs
 
-    return normal_txs
+    return ttl_save_txs
 
 # Normal TX in etherscan:
 # blockNumber timeStamp confirmations
