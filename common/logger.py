@@ -14,7 +14,7 @@ style_blink='\033[05m'
 style_reverse='\033[07m'
 style_invisible='\033[08m'
 style_strikethrough='\033[09m'
-# FG
+
 fg_black='\033[30m'
 fg_red='\033[31m'
 fg_green='\033[32m'
@@ -32,66 +32,23 @@ fg_lightblue='\033[94m'
 fg_lightmagenta='\033[95m'
 fg_lightcyan='\033[96m'
 fg_lightwhite='\033[97m'
-# BG
+
 bg_black='\033[40m'
 bg_red='\033[41m'
 bg_green='\033[42m'
-bg_orange='\033[43m'
+bg_yellow='\033[43m'
 bg_blue='\033[44m'
-bg_purple='\033[45m'
+bg_magenta='\033[45m'
 bg_cyan='\033[46m'
-bg_lightgrey='\033[47m'
+bg_white='\033[47m'
 
-def black(s):
-    return fg_black + s + style_reset
-def red(s):
-    return fg_red + s + style_reset
-def green(s):
-    return fg_green + s + style_reset
-def yellow(s):
-    return fg_yellow + s + style_reset
-def blue(s):
-    return fg_blue + s + style_reset
-def magenta(s):
-    return fg_magenta + s + style_reset
-def cyan(s):
-    return fg_cyan + s + style_reset
-def white(s):
-    return fg_white + s + style_reset
+for color in ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']:
+    globals()[color] = lambda s, c=color: globals()['fg_'+c] + s + style_reset
+    globals()['light_'+color] = lambda s, c=color: globals()['fg_light'+c] + s + style_reset
+    globals()['on_'+color] = lambda s, c=color: globals()['bg_'+c] + s + style_reset
 
-def light_black(s):
-    return fg_lightblack + s + style_reset
-def light_red(s):
-    return fg_lightred + s + style_reset
-def light_green(s):
-    return fg_lightgreen + s + style_reset
-def light_yellow(s):
-    return fg_lightyellow + s + style_reset
-def light_blue(s):
-    return fg_lightblue + s + style_reset
-def light_magenta(s):
-    return fg_lightmagenta + s + style_reset
-def light_cyan(s):
-    return fg_lightcyan + s + style_reset
-def light_white(s):
-    return fg_lightwhite + s + style_reset
-
-def on_black(s):
-    return bg_black + s + style_reset
-def on_red(s):
-    return bg_red + s + style_reset
-def on_green(s):
-    return bg_green + s + style_reset
-def on_yellow(s):
-    return bg_yellow + s + style_reset
-def on_blue(s):
-    return bg_blue + s + style_reset
-def on_magenta(s):
-    return bg_magenta + s + style_reset
-def on_cyan(s):
-    return bg_cyan + s + style_reset
-def on_white(s):
-    return bg_white + s + style_reset
+for style in ['reset', 'bold', 'disable', 'underline', 'blink', 'reverse', 'invisible', 'strikethrough']:
+    globals()[style] = lambda s, c=style: globals()['style_'+c] + s + style_reset
 
 # Log control
 def log(*args, **kwargs):
