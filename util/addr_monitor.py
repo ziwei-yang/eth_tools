@@ -6,7 +6,7 @@ from eth_tool.common import web3_eth, cache, etherscan, logger
 from eth_tool.common.logger import debug, log
 
 ROOT_DIR = os.environ['ETH_TOOLS_DIR']
-contacts_ = ROOT_DIR + '/data/contacts.json'
+contacts_ = ROOT_DIR + '/data/trace_contacts.json'
 if len(sys.argv) >= 2:
     contacts_ = sys.argv[1]
 

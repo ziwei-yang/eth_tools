@@ -38,7 +38,12 @@ def call_contract(contract_addr, func, *args, **kwargs):
             debug("Call", symbol, func, *args)
         else:
             debug("Call", contract_addr, func, *args)
-    return get_contract(contract_addr).functions[func](*args).call()
+    try:
+        return get_contract(contract_addr).functions[func](*args).call()
+    except web3.exceptions.BadFunctionCallOutput:
+        error("BadFunctionCallOutput while calling", contract_addr,
+                "Maybe contract is destructed.")
+        return None
 
 ########################################
 # Other basic ETH APIs.
@@ -92,4 +97,4 @@ def print_balance(addr, token_addr_or_name=[]):
     for k in bal_map:
         if Web3.isAddress(k) == False:
             if bal_map[k] != 0:
-                log(k.ljust(12), bal_map[k])
+                log(k.ljust(30), "%10f" % bal_map[k])

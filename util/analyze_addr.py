@@ -11,7 +11,9 @@ if len(sys.argv) > 2:
 
 info = cache.contract_info(addr)
 if info is not None:
-    if len(info['ContractName']) > 0:
+    if len(info) == 0:
+        log("Contract info is empty", info)
+    elif len(info['ContractName']) > 0:
         log("Contract name", logger.on_green(info['ContractName']))
         quit()
 
