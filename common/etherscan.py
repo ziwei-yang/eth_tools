@@ -265,6 +265,8 @@ def tx_tokens(tx):
     return list(set(map(lambda e: e['tokenSymbol'], tx['_erc20_events'])))
 
 def format_tx(j, addr=None):
+    if addr is not None:
+        addr = Web3.toChecksumAddress(addr)
     # Time
     l = [
             datetime.datetime.utcfromtimestamp(int(j['timeStamp'])-time.timezone).strftime('%Y%m%d %H:%M:%S'),
@@ -390,4 +392,8 @@ def render_addr(addr):
         if info['ContractName'] is not None:
             if len(info['ContractName']) > 0:
                 return info['ContractName']
+    addr = Web3.toChecksumAddress(addr)
+    tag = cache.address_nametag(addr)
+    if tag is not None:
+        return tag
     return addr
