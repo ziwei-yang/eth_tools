@@ -13,6 +13,7 @@ from .logger import log, debug, error
 ROOT_DIR = os.environ['ETH_TOOLS_DIR']
 CACHE_DIR = ROOT_DIR + '/cache'
 RES_DIR = ROOT_DIR + '/res'
+DATA_DIR = ROOT_DIR + '/data'
 
 for d in ['contract', 'addr', 'token', 'etherscan_tx_his']:
     if os.path.exists(CACHE_DIR + '/' + d) is False:
@@ -32,15 +33,57 @@ if os.path.exists(CONTRACT_NAME_MAP_FILE):
             addr = segs[1][1:-1] # Remove quotes
             name = segs[2][1:-2] # Remove quotes and new line char.
             if Web3.isAddress(addr):
-                CONTRACT_NAME_MAP[addr] = name
+                CONTRACT_NAME_MAP[Web3.toChecksumAddress(addr)] = name
     debug(len(CONTRACT_NAME_MAP), "contract addr-name load")
 else:
     debug("No export-verified-contractaddress-opensource-license.csv found in res")
+
+PUBLIC_TAG_MAP = {}
+PUBLIC_TAG_FILE = DATA_DIR + '/tags'
+if os.path.exists(PUBLIC_TAG_FILE):
+    debug("Loading", PUBLIC_TAG_FILE)
+    with open(PUBLIC_TAG_FILE, 'r') as f:
+        for l in f.readlines():
+            l = l.strip()
+            if len(l) == 0 or l.startswith('#'):
+                continue
+            segs = l.split(' ')
+            if len(segs) < 2:
+                continue
+            addr = Web3.toChecksumAddress(segs[0])
+            if addr in PUBLIC_TAG_MAP:
+                error("Duplicated address tag found", addr)
+            PUBLIC_TAG_MAP[addr] = segs[1]
+
+CONTACT_ADDR_MAP = {}
+CONTACT_NAME_MAP = {}
+CONTACTS_FILE = DATA_DIR + '/contacts.json'
+if os.path.exists(CONTACTS_FILE):
+    debug("Loading", CONTACTS_FILE)
+    with open(CONTACTS_FILE, 'r') as f:
+        j = json.loads(f.read())
+        for name in j:
+            ct = 0
+            CONTACT_NAME_MAP[name] = map(lambda a: Web3.toChecksumAddress(a), j[name])
+            for addr in CONTACT_NAME_MAP[name]:
+                ct = ct + 1
+                if addr in CONTACT_ADDR_MAP:
+                    error("Duplicated contact address found", addr)
+                CONTACT_ADDR_MAP[addr] = name + '#' + str(ct) + '-' + addr[0:6]
+
+def address_nametag(addr):
+    addr = Web3.toChecksumAddress(addr)
+    if addr in PUBLIC_TAG_MAP:
+        return "tags/" + PUBLIC_TAG_MAP[addr]
+    if addr in CONTACT_ADDR_MAP:
+        return "contact/" + CONTACT_ADDR_MAP[addr]
+    return None
 
 ########################################
 # Cache for contract name
 ########################################
 def contract_name(addr):
+    addr = Web3.toChecksumAddress(addr)
     # Layer 1 cache
     if addr in CONTRACT_NAME_MAP:
         return CONTRACT_NAME_MAP[addr]
@@ -59,12 +102,14 @@ def contract_name(addr):
 ########################################
 CONTRACT_INFO_MAP = {}
 def contract_info_clear(addr):
+    addr = Web3.toChecksumAddress(addr)
     CONTRACT_INFO_MAP[addr] = None
     contract_f = CACHE_DIR + '/contract/' +addr
     if os.path.exists(contract_f):
         os.remove(contract_f)
 
 def contract_info(addr):
+    addr = Web3.toChecksumAddress(addr)
     if addr in CONTRACT_INFO_MAP:
         return CONTRACT_INFO_MAP[addr]
 
@@ -76,6 +121,7 @@ def contract_info(addr):
     return None
 
 def contract_info_set(addr, j):
+    addr = Web3.toChecksumAddress(addr)
     CONTRACT_INFO_MAP[addr] = j
     contract_f = CACHE_DIR + '/contract/' +addr
     with open(contract_f, 'w') as f:
@@ -111,6 +157,7 @@ def token_cache_get(addr_or_symbol):
         return TOKEN_INFO_MAP[addr_or_symbol]
     token_f = CACHE_DIR + '/token/' + addr_or_symbol + '.json'
     if Web3.isAddress(addr_or_symbol):
+        addr_or_symbol = Web3.toChecksumAddress(addr_or_symbol)
         token_f = CACHE_DIR + '/addr/' + addr_or_symbol + '.json'
     if os.path.exists(token_f):
         with open(token_f, 'r') as f:
