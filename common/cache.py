@@ -55,21 +55,29 @@ if os.path.exists(PUBLIC_TAG_FILE):
                 error("Duplicated address tag found", addr)
             PUBLIC_TAG_MAP[addr] = segs[1]
 
-CONTACT_ADDR_MAP = {}
-CONTACT_NAME_MAP = {}
-CONTACTS_FILE = DATA_DIR + '/contacts.json'
-if os.path.exists(CONTACTS_FILE):
-    debug("Loading", CONTACTS_FILE)
-    with open(CONTACTS_FILE, 'r') as f:
-        j = json.loads(f.read())
-        for name in j:
-            ct = 0
-            CONTACT_NAME_MAP[name] = map(lambda a: Web3.toChecksumAddress(a), j[name])
-            for addr in CONTACT_NAME_MAP[name]:
-                ct = ct + 1
-                if addr in CONTACT_ADDR_MAP:
-                    error("Duplicated contact address found", addr)
-                CONTACT_ADDR_MAP[addr] = name + '#' + str(ct) + '-' + addr[0:6]
+def __import_contacts(files):
+    addr_map = {}
+    name_map = {}
+    for f in files:
+        if os.path.exists(f) == False:
+            continue
+        debug("Loading", f)
+        with open(f, 'r') as fo:
+            j = json.loads(fo.read())
+            for name in j:
+                ct = 0
+                name_map[name] = map(lambda a: Web3.toChecksumAddress(a), j[name])
+                for addr in name_map[name]:
+                    ct = ct + 1
+                    if addr in addr_map:
+                        error("Duplicated contact address found", addr)
+                    addr_map[addr] = name + '#' + str(ct) + '-' + addr[0:6]
+    return (addr_map, name_map)
+
+CONTACT_ADDR_MAP, CONTACT_NAME_MAP = __import_contacts([
+        DATA_DIR + '/contacts.json',
+        DATA_DIR + '/trace_contacts.json'
+    ])
 
 def address_nametag(addr):
     addr = Web3.toChecksumAddress(addr)

@@ -93,7 +93,7 @@ def scan_balance(addr, token_addr_or_name=[], **kwargs):
 
 def print_balance(addr, token_addr_or_name=[]):
     bal_map = scan_balance(addr, token_addr_or_name)
-    log('----', 'Bal', addr, '----')
+    log('----', 'Bal', etherscan.render_addr(addr), '----')
     for k in bal_map:
         if Web3.isAddress(k) == False:
             if bal_map[k] != 0:

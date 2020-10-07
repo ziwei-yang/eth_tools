@@ -122,7 +122,7 @@ def addr_tx_update(addr, **kwargs):
         normal_tx = {}
         if i not in tx_by_hash: # Extract basic TX info.
             for k in ['blockNumber', 'timeStamp', 'hash', 'gas', 'gasUsed']:
-                normal_tx[k] = erc20_tx[k]
+                normal_tx[k] = int_tx[k]
             tx_by_hash[i] = normal_tx
         else:
             normal_tx = tx_by_hash[i]
@@ -277,6 +277,24 @@ def tx_token_value(tx, token):
         return 0
     return value / (10**int(e['tokenDecimal']))
 
+# Return a hashmap contains:
+# { addr: net_value }
+# Mark value as positive if is transferred to addr
+def tx_token_netvalue(tx, token, **kwargs):
+    if '_erc20_events' not in tx:
+        return {}
+    net_value_map = kwargs.get('net_value_map') or {}
+    decimals = None
+    for e in tx['_erc20_events']:
+        if e['tokenSymbol'] == token:
+            from_addr = Web3.toChecksumAddress(e['from'])
+            to_addr = Web3.toChecksumAddress(e['to'])
+            decimals = decimals or e['tokenDecimal']
+            value = int(e['value']) / (10**int(decimals))
+            net_value_map[from_addr] = 0 - value + (net_value_map.get(from_addr) or 0)
+            net_value_map[to_addr] = value + (net_value_map.get(to_addr) or 0)
+    return net_value_map
+
 def format_tx(j, addr=None):
     if addr is not None:
         addr = Web3.toChecksumAddress(addr)
@@ -338,7 +356,7 @@ def format_tx(j, addr=None):
         is_error = True
     lines.append(' '.join(l))
     if is_error:
-        lines = map(lambda s: logger.red(s), lines)
+        lines = list(map(lambda s: logger.red(s), lines))
 
     if 'contractAddress' in j and len(j['contractAddress']) > 0:
         lines.append('Contract '+j['contractAddress'])
