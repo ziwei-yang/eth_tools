@@ -5,9 +5,6 @@ from eth_tool.common import web3_eth, cache, etherscan, logger
 from eth_tool.common.logger import debug, log
 
 addr = Web3.toChecksumAddress(sys.argv[1])
-max_num = 5
-if len(sys.argv) > 2:
-    max_num = int(sys.argv[2])
 
 info = cache.contract_info(addr)
 if info is not None:

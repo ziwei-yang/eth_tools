@@ -86,6 +86,8 @@ def contract_name(addr):
     addr = Web3.toChecksumAddress(addr)
     # Layer 1 cache
     if addr in CONTRACT_NAME_MAP:
+        if CONTRACT_NAME_MAP[addr] == 'NULL':
+            return None
         return CONTRACT_NAME_MAP[addr]
     # Layer 2 file cache
     info = contract_info(addr)
@@ -93,8 +95,7 @@ def contract_name(addr):
         if 'ContractName' in info:
             CONTRACT_NAME_MAP[addr] = info['ContractName']
             return info['ContractName']
-        else:
-            error("No ContractName in", addr, info)
+    CONTRACT_NAME_MAP[addr] = 'NULL'
     return None
 
 ########################################

@@ -19,7 +19,7 @@ for alias in contacts:
     for addr in addr_list:
         addr = Web3.toChecksumAddress(addr)
         debug("Scanning", alias, addr)
-        new_txs = etherscan.addr_tx_update(addr, verbose=True)
+        new_txs = etherscan.addr_tx_update(addr, verbose=False)
         for tx in new_txs:
             log("New TX", alias, addr)
             print(etherscan.format_tx(tx, addr=addr))

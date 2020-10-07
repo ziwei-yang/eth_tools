@@ -264,6 +264,19 @@ def tx_tokens(tx):
         return []
     return list(set(map(lambda e: e['tokenSymbol'], tx['_erc20_events'])))
 
+def tx_token_value(tx, token):
+    if '_erc20_events' not in tx:
+        return 0
+    value = 0
+    decimals = None
+    for e in tx['_erc20_events']:
+        if e['tokenSymbol'] == token:
+            value = value + int(e['value'])
+            decimals = e['tokenDecimal']
+    if value == 0:
+        return 0
+    return value / (10**int(e['tokenDecimal']))
+
 def format_tx(j, addr=None):
     if addr is not None:
         addr = Web3.toChecksumAddress(addr)
