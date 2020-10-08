@@ -10,20 +10,15 @@ from eth_tool.common import web3_eth, cache, etherscan, logger
 #################################################
 
 addr_list = [] # Target addresses
+addr = None # to be replaced by addr_list
 page_size = 5
 order_by = None
 filter_by = None
 token = None
 for a in sys.argv:
     if Web3.isAddress(a):
+        addr = Web3.toChecksumAddress(a)
         addr_list.append(Web3.toChecksumAddress(a))
-    elif re.match(r"^contact\/", a.lower()):
-        contact_key = a.split('contact/')[1]
-        addr_list = cache.contact_addresses(contact_key)
-        if addr_list is None:
-            error("No contact", contact_key)
-            quit()
-        logger.info("Load contact address", len(addr_list))
     elif a.upper() == 'BYVALUE': # Order TX by token value
         order_by = 'value'
     elif a.upper() == 'BYTIME':
@@ -37,50 +32,40 @@ for a in sys.argv:
     elif re.match(r'^[A-Za-z]{2,8}$', a):
         token = a.upper()
 
-txs_map = {}
-for a in addr_list:
-    etherscan.addr_tx_update(a, verbose=True)
-    txs_map[a] = cache.addr_tx_get(a)
+txs = etherscan.addr_tx_update(addr, verbose=True)
+tokens = etherscan.involved_tokens(txs)
+if token is not None:
+    web3_eth.print_balance(addr, [token])
+
+ct = 0
+txs = cache.addr_tx_get(addr)
 
 #################################################
 # TX filter
 #################################################
 if token is not None:
-    for a in txs_map:
-        txs = txs_map[a]
-        logger.log("Filter", len(txs), "TX by", token, a)
-        txs_map[a] = list(filter(lambda tx: token in etherscan.tx_tokens(tx), txs))
+    logger.log("Filter", len(txs), "TX by", token)
+    txs = list(filter(lambda tx: token in etherscan.tx_tokens(tx), txs))
 
 if filter_by == 'peer':
-    for a in txs_map:
-        txs = txs_map[a]
-        logger.log("Filter", len(txs), "TX by peer transfer", a)
-        txs_map[a] = list(filter(lambda tx: len(etherscan.tx_xfr_info(tx, a, mode='peer')) == 1, txs))
-
-#################################################
-# TX merging, add owner address.
-#################################################
-all_txs = []
-for a in txs_map:
-    for tx in txs_map[a]:
-        tx['owner'] = a
-        all_txs.append(tx)
+    logger.log("Filter", len(txs), "TX by peer transfer")
+    txs = list(filter(lambda tx: len(etherscan.tx_xfr_info(tx, addr, mode='peer')) == 1, txs))
 
 #################################################
 # TX analyzing
 #################################################
 if token is not None:
     if order_by == 'value':
-        logger.log("Sort", len(all_txs), "TX by", token, "Value")
-        all_txs = sorted(all_txs, key=lambda tx: etherscan.tx_token_value(tx, token), reverse=True)
+        logger.log("Sort", len(txs), "TX by", token, "Value")
+        txs = sorted(txs, key=lambda tx: etherscan.tx_token_value(tx, token), reverse=True)
     elif order_by == 'netvalue':
         logger.log("Compute", token, "net value in", len(txs), "TX")
+        txs.reverse()
         net_value_map = {}
-        for tx in all_txs:
+        for tx in txs:
             net_value_map = etherscan.tx_token_netvalue(tx, token, net_value_map=net_value_map)
-        for a in addr_list:
-            if a in net_value_map:
-                net_value_map.pop(a)
+        if addr in net_value_map:
+            net_value_map.pop(addr)
         addr_value_list = sorted(list(net_value_map.items()), key=lambda kv: kv[1], reverse=True)
         logger.log("Biggest net buyer/withdrawer:")
         for kv in addr_value_list[0:19]:
@@ -100,22 +85,16 @@ if token is not None:
         net_value_map = {}
         for tx in txs:
             net_value_map = etherscan.tx_token_netvalue(tx, token, net_value_map=net_value_map)
-        for a in addr_list:
-            logger.log("Net", token, "balance computed", a, net_value_map.get(a))
-
-if token is not None:
-    for a in addr_list:
-        web3_eth.print_balance(a, [token])
+        logger.log("Net value computed", net_value_map.get(addr))
 
 #################################################
 # TX printing
 #################################################
-logger.log("Total", len(all_txs), "TX")
-ct = 0
-for tx in all_txs:
+logger.log("Total", len(txs), "TX")
+for tx in txs:
     ct += 1
     print(ct, '---------------------------------')
-    print(etherscan.format_tx(tx, addr=tx['owner']))
+    print(etherscan.format_tx(tx, addr=addr))
     if ct % page_size == 0:
         logger.info("Press enter to show", page_size, "more TX")
         input()

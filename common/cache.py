@@ -66,7 +66,7 @@ def __import_contacts(files):
             j = json.loads(fo.read())
             for name in j:
                 ct = 0
-                name_map[name] = map(lambda a: Web3.toChecksumAddress(a), j[name])
+                name_map[name] = list(map(lambda a: Web3.toChecksumAddress(a), j[name]))
                 for addr in name_map[name]:
                     ct = ct + 1
                     if addr in addr_map:
@@ -78,6 +78,9 @@ CONTACT_ADDR_MAP, CONTACT_NAME_MAP = __import_contacts([
         DATA_DIR + '/contacts.json',
         DATA_DIR + '/trace_contacts.json'
     ])
+
+def contact_addresses(name):
+    return CONTACT_NAME_MAP.get(name)
 
 def address_nametag(addr):
     addr = Web3.toChecksumAddress(addr)
