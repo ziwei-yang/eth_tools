@@ -4,6 +4,10 @@ from web3 import Web3
 from eth_tool.common import web3_eth, cache, etherscan, logger
 from eth_tool.common.logger import debug, log
 
+#################################################
+# Check if address is contract
+# Print its balance and latest TX.
+#################################################
 addr = Web3.toChecksumAddress(sys.argv[1])
 
 info = cache.contract_info(addr)

@@ -6,7 +6,7 @@ import time
 from web3 import Web3
 
 from . import cache, logger
-from .logger import log, debug
+from .logger import log, debug, error
 
 def is_verbose(kwargs):
     return kwargs.get('verbose') != False
@@ -295,6 +295,50 @@ def tx_token_netvalue(tx, token, **kwargs):
             net_value_map[to_addr] = value + (net_value_map.get(to_addr) or 0)
     return net_value_map
 
+# Return [(SYMBOL, ±value, from/to), ...]
+# Extract transfer info from TX when:
+# TX is for sending ETH
+# TX is for transferring ERC20
+# Value is positive when addr <-- from_addr
+# Value is negative when addr --> to_addr
+# If kwargs[mode] is 'peer':
+#   Only returns info that seems to be a single xfr between peers,
+#   Discard when multiple xfr happens.
+#   Discard when from/to is a contract.
+def tx_xfr_info(tx, addr, **kwargs):
+    addr = Web3.toChecksumAddress(addr)
+    info = []
+    if 'value' in tx and int(tx['value']) > 0:
+        v = Web3.fromWei(int(tx['value']), 'ether')
+        if addr == Web3.toChecksumAddress(tx['from']):
+            info.append(['ETH', 0-v, tx['to']])
+        elif addr == Web3.toChecksumAddress(tx['to']):
+            info.append(['ETH', v, tx['from']])
+    # ERC20 events
+    for e in tx.get('_erc20_events') or []:
+        v = int(e['value']) / (10**int(e['tokenDecimal']))
+        if addr == Web3.toChecksumAddress(e['from']):
+            info.append([e['tokenSymbol'], 0-v, e['to']])
+        elif addr == Web3.toChecksumAddress(e['to']):
+            info.append([e['tokenSymbol'], v, e['from']])
+    # Internal transactions
+    for e in tx.get('_internal_txs') or []:
+        v = Web3.fromWei(int(e['value']), 'ether')
+        if addr == Web3.toChecksumAddress(e['from']):
+            info.append(['ETH', 0-v, e['to']])
+        elif addr == Web3.toChecksumAddress(e['to']):
+            info.append(['ETH', v, e['from']])
+    # Filter by mode.
+    if kwargs.get('mode') == 'peer':
+        if tx.get('input') == '0x': # ETH xfr only.
+            return info
+        if len(info) is not 1:
+            return []
+        if contract_info(info[0][2]) is not None:
+            return [] # Skip when receiver is a contract.
+        return info
+    return info
+
 def format_tx(j, addr=None):
     if addr is not None:
         addr = Web3.toChecksumAddress(addr)
@@ -364,51 +408,49 @@ def format_tx(j, addr=None):
     # lines.append(json.dumps(j)) # Debug
 
     # ERC20 events
-    if '_erc20_events' in j:
-        for e in j['_erc20_events']:
-            l = [
-                    "\t",
-                    e['tokenSymbol'].ljust(12),
-                    ("%.8f" % (int(e['value']) / (10**int(e['tokenDecimal'])))).ljust(20)
-                ]
-            if addr is not None and addr.lower() == e['from'].lower():
-                l.append('-->')
-                l.append(render_addr(e['to']))
-            elif addr is not None and addr.lower() == e['to'].lower():
-                l.append('<--')
-                l.append(render_addr(e['from']))
-                # Render incoming in green
-                l = list(map(lambda s: logger.light_green(s), l))
-            else: # Might happen in ERC20 event
-                l.append(render_addr(e['from']))
-                l.append(render_addr(e['to']))
-            lines.append(' '.join(l))
+    for e in j.get('_erc20_events') or []:
+        l = [
+                "\t",
+                e['tokenSymbol'].ljust(12),
+                ("%.8f" % (int(e['value']) / (10**int(e['tokenDecimal'])))).ljust(20)
+            ]
+        if addr is not None and addr.lower() == e['from'].lower():
+            l.append('-->')
+            l.append(render_addr(e['to']))
+        elif addr is not None and addr.lower() == e['to'].lower():
+            l.append('<--')
+            l.append(render_addr(e['from']))
+            # Render incoming in green
+            l = list(map(lambda s: logger.light_green(s), l))
+        else: # Might happen in ERC20 event
+            l.append(render_addr(e['from']))
+            l.append(render_addr(e['to']))
+        lines.append(' '.join(l))
 
     # Internal transactions
-    if '_internal_txs' in j:
-        for e in j['_internal_txs']:
-            l = [
-                    "\t",
-                    'ETH'.ljust(12),
-                    ("%.8f" % (Web3.fromWei(int(e['value']), 'ether'))).ljust(20)
-                ]
-            if addr is not None and addr.lower() == e['from'].lower():
-                l.append('-->')
-                l.append(render_addr(e['to']))
-            elif addr is not None and addr.lower() == e['to'].lower():
-                l.append('<--')
-                l.append(render_addr(e['from']))
-                # Render incoming in green
-                l = list(map(lambda s: logger.light_green(s), l))
-            else: # Might happen in ERC20 event
-                l.append(render_addr(e['from']))
-                l.append(render_addr(e['to']))
-            # Status
-            if e['isError'] == '0':
-                l.append(' ')
-            else:
-                l.append('X')
-            lines.append(' '.join(l))
+    for e in j.get('_internal_txs') or []:
+        l = [
+                "\t",
+                'ETH'.ljust(12),
+                ("%.8f" % (Web3.fromWei(int(e['value']), 'ether'))).ljust(20)
+            ]
+        if addr is not None and addr.lower() == e['from'].lower():
+            l.append('-->')
+            l.append(render_addr(e['to']))
+        elif addr is not None and addr.lower() == e['to'].lower():
+            l.append('<--')
+            l.append(render_addr(e['from']))
+            # Render incoming in green
+            l = list(map(lambda s: logger.light_green(s), l))
+        else: # Might happen in ERC20 event
+            l.append(render_addr(e['from']))
+            l.append(render_addr(e['to']))
+        # Status
+        if e['isError'] == '0':
+            l.append(' ')
+        else:
+            l.append('X')
+        lines.append(' '.join(l))
 
     return "\n".join(lines)
 
@@ -426,5 +468,5 @@ def render_addr(addr):
     addr = Web3.toChecksumAddress(addr)
     tag = cache.address_nametag(addr)
     if tag is not None:
-        return tag
+        return logger.reverse(tag)
     return addr
