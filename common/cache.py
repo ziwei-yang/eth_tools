@@ -151,7 +151,7 @@ def token_cache_set(addr, symbol, name, decimals):
     TOKEN_INFO_MAP[addr] = TOKEN_INFO_MAP[symbol] = info
 
     addr_f = CACHE_DIR + '/addr/' + addr + '.json'
-    symbol_f = CACHE_DIR + '/token/' + symbol + '.json'
+    symbol_f = CACHE_DIR + '/token/' + symbol.replace('/','_slash_') + '.json'
     if os.path.exists(addr_f) and os.path.exists(symbol_f):
         return info
     json_str = json.dumps(info)
@@ -164,10 +164,12 @@ def token_cache_set(addr, symbol, name, decimals):
 def token_cache_get(addr_or_symbol):
     if addr_or_symbol in TOKEN_INFO_MAP:
         return TOKEN_INFO_MAP[addr_or_symbol]
-    token_f = CACHE_DIR + '/token/' + addr_or_symbol + '.json'
+    token_f = None
     if Web3.isAddress(addr_or_symbol):
         addr_or_symbol = Web3.toChecksumAddress(addr_or_symbol)
         token_f = CACHE_DIR + '/addr/' + addr_or_symbol + '.json'
+    else:
+        token_f = CACHE_DIR + '/token/' + addr_or_symbol.replace('/', '_slash_') + '.json'
     if os.path.exists(token_f):
         with open(token_f, 'r') as f:
             info = json.loads(f.read())
