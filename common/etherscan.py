@@ -339,15 +339,19 @@ def tx_xfr_info(tx, addr, **kwargs):
         return info
     return info
 
-def format_tx(j, addr=None):
-    if addr is not None:
-        addr = Web3.toChecksumAddress(addr)
+def format_tx(j, addr=None, **kwargs):
     # Time
     l = [
             datetime.datetime.utcfromtimestamp(int(j['timeStamp'])-time.timezone).strftime('%Y%m%d %H:%M:%S'),
             j['hash']
         ]
     lines = [' '.join(l)]
+
+    if addr is not None:
+        addr = Web3.toChecksumAddress(addr)
+        if kwargs.get('show_owner') is True:
+            lines.append(render_addr(addr))
+
     if 'value' in j and int(j['value']) > 0:
         l = [
                 "\t",
@@ -457,9 +461,11 @@ def format_tx(j, addr=None):
 def render_addr(addr):
     if addr == '0x0000000000000000000000000000000000000000':
         return '0x00'
+    if addr == '0x0000000000000000000000000000000000000001':
+        return '0x01'
     if cache.contract_name(addr) is not None:
         if len(cache.contract_name(addr)) > 0:
-            return cache.contract_name(addr).ljust(len(addr))
+            return (cache.contract_name(addr) + " " + addr[0:10]).ljust(len(addr))
     info = contract_info(addr)
     if info is not None:
         if info['ContractName'] is not None:
@@ -468,5 +474,5 @@ def render_addr(addr):
     addr = Web3.toChecksumAddress(addr)
     tag = cache.address_nametag(addr)
     if tag is not None:
-        return logger.reverse(tag)
+        return logger.reverse(tag.ljust(42))
     return addr

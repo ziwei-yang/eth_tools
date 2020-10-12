@@ -54,6 +54,10 @@ if os.path.exists(PUBLIC_TAG_FILE):
             if addr in PUBLIC_TAG_MAP:
                 error("Duplicated address tag found", addr)
             PUBLIC_TAG_MAP[addr] = segs[1]
+            PUBLIC_TAG_MAP[segs[1]] = addr
+
+def tag_address(name):
+    return PUBLIC_TAG_MAP.get(name)
 
 def __import_contacts(files):
     addr_map = {}
