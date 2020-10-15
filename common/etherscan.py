@@ -522,6 +522,7 @@ def __gas_tracker_parser(browser, **kwargs):
     webdriver.ActionChains(browser).release().perform()
     return (False, status)
 
+# Better use gas_tracker_or_cached() for faster response with cache support.
 def gas_tracker():
     ret, data = webbrowser.render_with_firefox(
             "https://etherscan.io/gasTracker",
@@ -530,3 +531,17 @@ def gas_tracker():
     if data.get("error") is None:
         return data['data']
     raise Exception(data["error"])
+
+def gas_tracker_or_cached(max_diff_seconds=1200):
+    utcnow = datetime.datetime.utcnow()
+    data = cache.last_gas_tracker()
+    need_update = True
+    if data is not None:
+        last_t = data['time_utc']
+        diff_sec = utcnow.timestamp() - last_t
+        if diff_sec <= max_diff_seconds:
+            need_update = False
+    if need_update:
+        cache.save_gas_tracker(gas_tracker())
+        data = cache.last_gas_tracker()
+    return data

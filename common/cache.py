@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import datetime
 from web3 import Web3
 
 from .logger import log, debug, error
@@ -15,7 +16,7 @@ CACHE_DIR = ROOT_DIR + '/cache'
 RES_DIR = ROOT_DIR + '/res'
 DATA_DIR = ROOT_DIR + '/data'
 
-for d in ['contract', 'addr', 'token', 'etherscan_tx_his']:
+for d in ['contract', 'addr', 'token', 'etherscan_tx_his', 'gas_tracker']:
     if os.path.exists(CACHE_DIR + '/' + d) is False:
         os.mkdir(CACHE_DIR + '/' + d)
 
@@ -112,6 +113,35 @@ def contract_name(addr):
             return info['ContractName']
     CONTRACT_NAME_MAP[addr] = 'NULL'
     return None
+
+########################################
+# Cache gas_tracker with timestamp.
+########################################
+def save_gas_tracker(data):
+    t = datetime.datetime.now()
+    utc = datetime.datetime.utcnow()
+    t_str = t.strftime('%Y%m%d_%H%M%S')
+    d = {
+            'time_utc' : utc.timestamp(),
+            'time_utc_str' : utc.strftime('%Y%m%d_%H%M%S'),
+            'time' : t.timestamp(),
+            'time_str' : t_str,
+            'data' : data
+        }
+    data_f = CACHE_DIR + '/gas_tracker/' + t_str + '.json'
+    debug("Saving gas_tracker file", t_str)
+    with open(data_f, 'w') as f:
+        f.write(json.dumps(d))
+
+def last_gas_tracker():
+    dir_p = CACHE_DIR + '/gas_tracker/'
+    files = [f for f in os.listdir(dir_p) if re.match(r"^[0-9]{8}_[0-9]{6}.json$", f)]
+    if len(files) == 0:
+        return None
+    files.sort(reverse=True) # From latest to oldest
+    debug("Loading latest gas_tracker file", files[0])
+    with open(dir_p + '/' + files[0], 'r') as f:
+        return json.loads(f.read())
 
 ########################################
 # Cache for contract info (ABI, SourceCode, ContractName, ...)
