@@ -5,7 +5,7 @@ import datetime
 import time
 from web3 import Web3
 
-from . import cache, logger
+from . import cache, logger, webbrowser
 from .logger import log, debug, error
 
 def is_verbose(kwargs):
@@ -476,3 +476,57 @@ def render_addr(addr):
     if tag is not None:
         return logger.reverse(tag.ljust(42))
     return addr
+
+########################################
+# Gas Tracker and other data that could only got in browser.
+########################################
+def __gas_tracker_parser(browser, **kwargs):
+    status = kwargs.get("status_data") or {}
+    ui = kwargs.get("ui")
+    by = kwargs.get("by")
+    webdriver = kwargs.get("webdriver")
+    
+    page_no = status.get("page_no") or 1
+    # Find 'Next' link
+    el_list = browser.find_elements_by_xpath("//*/a[@class='page-link']")
+    select_els = list(filter(lambda e: e.text == "Next", el_list))
+    if len(select_els) != 1:
+        status["error"] = "To many/less <a class='page-link'> elements " + str(len(select_els))
+        return (True, status)
+
+    # Parse records.
+    rows = browser.find_elements_by_xpath("//*/table[@id='mytable']/tbody/tr[@role='row']/td[2]")
+    data = status.get("data") or []
+    for r in rows:
+        href_els = r.find_elements(by.TAG_NAME, 'a')
+        if len(href_els) != 1:
+            error("Too many/less href for", r.text)
+            continue
+        href = href_els[0].get_attribute('href')
+        if href.startswith('https://etherscan.io/address/') is not True:
+            error("Unexpected href", href, 'for', r.text)
+            continue
+        address = href.split('https://etherscan.io/address/')[1]
+        data.append([r.text, address])
+        debug(r.text.ljust(44), address)
+    status['data'] = data
+
+    if page_no > 3:
+        return (True, status)
+    status['page_no'] = (page_no + 1)
+    # Scroll down
+    webbrowser.move_to_element(browser, select_els[0])
+    time.sleep(1)
+    # Click 'Next'
+    webdriver.ActionChains(browser).click_and_hold(select_els[0]).perform()
+    webdriver.ActionChains(browser).release().perform()
+    return (False, status)
+
+def gas_tracker():
+    ret, data = webbrowser.render_with_firefox(
+            "https://etherscan.io/gasTracker",
+            block=__gas_tracker_parser
+            )
+    if data.get("error") is None:
+        return data['data']
+    raise Exception(data["error"])
