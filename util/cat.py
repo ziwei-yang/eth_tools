@@ -20,7 +20,7 @@ if info is not None:
 
 log("getCode()", addr)
 code = web3_eth.getCode(addr)
-if code is not '0x': # Contract
+if code != '0x': # Contract
     if len(code) > 30:
         log("\t", "code", code[0:29], "...",  "len:", len(code)-2)
     else:
