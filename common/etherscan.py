@@ -23,7 +23,8 @@ def api(**kwargs):
     url = 'https://api.etherscan.io/api?' + arg_str
     ret = requests.get(url)
     j = json.loads(ret.text)
-    debug('<-- etherscan', j['status'], j['message'])
+    if is_verbose(kwargs):
+        debug('<-- etherscan', j['status'], j['message'])
     if j['status'] == "1":
         return j['result']
     elif j['status'] == "0":
@@ -50,7 +51,7 @@ def contract_info(addr, **kwargs):
         if len(contract_info) == 0: # Queried but no result.
             return None
         return contract_info
-    info = api(module='contract', action='getsourcecode', address=addr)
+    info = api(module='contract', action='getsourcecode', address=addr, verbose=kwargs.get("verbose"))
     if len(info) == 0: # Queried but no result.
         cache.contract_info_set(addr, {})
         return None
@@ -532,7 +533,8 @@ def gas_tracker():
         return data['data']
     raise Exception(data["error"])
 
-def gas_tracker_or_cached(max_diff_seconds=1200):
+def gas_tracker_or_cached(**kwargs):
+    max_diff_seconds=kwargs.get("valid_cache_t") or 1200
     utcnow = datetime.datetime.utcnow()
     data = cache.last_gas_tracker()
     need_update = True
