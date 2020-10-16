@@ -31,6 +31,8 @@ def render_with_firefox(url, **kwargs):
     firefox.get(url)
 
     render_t = kwargs.get('render_t') or 3
+    if verbose:
+        debug("Sleep", render_t, "after first load")
     time.sleep(render_t)
 
     post_func = kwargs.get('block')
@@ -47,11 +49,16 @@ def render_with_firefox(url, **kwargs):
     while True:
         if verbose:
             debug("Process webpage", url, "with post_func")
-        ret, status_data = post_func(firefox, by=By, ui=ui, webdriver=webdriver, status_data=status_data)
+        ret, status_data = post_func(
+                firefox,
+                by=By, ui=ui, webdriver=webdriver,
+                status_data=status_data)
         if status_data.get("error") is not None:
             error(status_data["error"])
         if ret == True:
             break
+        if verbose:
+            debug("Sleep", render_t, "until next round of post_func")
         time.sleep(render_t)
 
     html = firefox.page_source
