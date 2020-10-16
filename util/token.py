@@ -1,21 +1,14 @@
 import json
 from web3 import Web3
-from eth_tool.common import web3_eth, etherscan, logger, cache
+from eth_tool.common import webbrowser, web3_eth, etherscan, logger, cache
 
-last_data = cache.last_gas_tracker()
-new_data = etherscan.gas_tracker_or_cached(valid_cache_t=600)
+data = etherscan.token_holders("Pickle")
 
-data = new_data
-if new_data == last_data:
-    logger.info("gas_tracker data unchanged")
-
-logger.info("At", data['time_str'], "Gas Tracker Contracts:")
 idx = 0
-for t in data['data']:
+for t in data:
     idx = idx + 1
     idx_str = str(idx).ljust(3)
-    name = t[0]
-    addr = t[1]
+    name, addr, qty = t
     name_pad = t[0].ljust(len(addr))
     if name != addr: # Use public tag directly.
         logger.log(idx_str, addr, "Tag     ", logger.green(logger.reverse(name)))
@@ -25,7 +18,7 @@ for t in data['data']:
     # log("getCode()", addr)
     code = web3_eth.getCode(addr)
     if code == '0x': # Personal Address
-        # logger.log(idx_str, name_pad, "Address")
+        logger.log(idx_str, name_pad)
         continue
 
     # Must be some contract
