@@ -3,6 +3,7 @@ import requests
 import json
 import datetime
 import time
+import re
 from web3 import Web3
 
 from . import cache, logger, webbrowser
@@ -479,11 +480,10 @@ def render_addr(addr):
     return addr
 
 ########################################
-# Gas Tracker and other data that could only got in browser.
+# Gas Tracker parser powered by browser.
 ########################################
 def __gas_tracker_parser(browser, **kwargs):
     status = kwargs.get("status_data") or {}
-    ui = kwargs.get("ui")
     by = kwargs.get("by")
     webdriver = kwargs.get("webdriver")
     
@@ -492,7 +492,7 @@ def __gas_tracker_parser(browser, **kwargs):
     el_list = browser.find_elements_by_xpath("//*/a[@class='page-link']")
     select_els = list(filter(lambda e: e.text == "Next", el_list))
     if len(select_els) != 1:
-        status["error"] = "To many/less <a class='page-link'> elements " + str(len(select_els))
+        status["error"] = "To many/few <a class='page-link'> elements " + str(len(select_els))
         return (True, status)
 
     # Parse records.
@@ -501,7 +501,7 @@ def __gas_tracker_parser(browser, **kwargs):
     for r in rows:
         href_els = r.find_elements(by.TAG_NAME, 'a')
         if len(href_els) != 1:
-            error("Too many/less href for", r.text)
+            error("Too many/few href for", r.text)
             continue
         href = href_els[0].get_attribute('href')
         if href.startswith('https://etherscan.io/address/') is not True:
@@ -547,3 +547,62 @@ def gas_tracker_or_cached(**kwargs):
         cache.save_gas_tracker(gas_tracker())
         data = cache.last_gas_tracker()
     return data
+
+########################################
+# Token holder parser powered by browser.
+########################################
+def __token_holder_parser(browser, **kwargs):
+    status = kwargs.get("status_data") or {}
+    by = kwargs.get("by")
+    webdriver = kwargs.get("webdriver")
+    with open("./page.html", "w") as f:
+        f.write(browser.page_source)
+    
+    page_no = status.get("page_no") or 1
+    # Find 'Next' link
+    el_list = browser.find_elements_by_xpath("//*/a[@class='page-link']")
+    select_els = list(filter(lambda e: e.text == ">", el_list))
+    if len(select_els) < 0: # Might be 2 duplicated.
+        status["error"] = "To few <a class='page-link'> elements " + str(len(select_els))
+        return (True, status)
+
+    # Parse records.
+    rows = browser.find_elements_by_xpath("//*/table/tbody/tr")
+    data = status.get("data") or []
+    for r in rows:
+        td_els = r.find_elements(by.TAG_NAME, 'td')
+        # rank, address(tag), quantity ...
+        display_name = td_els[1].text
+        qty = td_els[2].text
+        href = td_els[1].find_element(by.TAG_NAME, 'a')
+        if href is None:
+            error("No href for", r.text)
+            continue
+        # https://etherscan.io/token/0x2260fac5e5542a773aa44fbcfedf7c193bc2c599?a=0x0983e2424217e016152e2a0fb3b71d6f746e1b08
+        href = href.get_attribute("href")
+        if re.match(r"^https://etherscan.io/token/[0-9A-Za-z]{42}\?a=[0-9A-Za-z]{42}$", href) is False:
+            error("Unexpected href", href, 'for', r.text)
+            continue
+        address = href.split('?a=')[1]
+        data.append([display_name, address, qty])
+        debug(display_name.ljust(42), qty)
+    status['data'] = data
+
+    if page_no > 0: # Might be enough.
+        return (True, status)
+    status['page_no'] = (page_no + 1)
+    # Scroll down
+    webbrowser.move_to_element(browser, select_els[0])
+    time.sleep(1)
+    # Click 'Next'
+    webdriver.ActionChains(browser).click_and_hold(select_els[0]).perform()
+    webdriver.ActionChains(browser).release().perform()
+    return (False, status)
+
+def token_holders(addr_or_symbol):
+    addr = addr_or_symbol
+    if Web3.isAddress(addr) is False:
+        addr = cache.token_cache_get(addr_or_symbol)['addr']
+    url = 'https://etherscan.io/token/generic-tokenholders2?a=' + addr
+    ret, data = webbrowser.render_with_firefox(url, block=__token_holder_parser)
+    return data['data']
