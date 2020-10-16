@@ -1,5 +1,12 @@
-*/__pycache__/
 __pycache__/
+*/__pycache__/
+*/*/__pycache__/
+
 conf/
 cache/
 data/
+res/
+
+eth_tool.egg-info/
+geckodriver.log
+venv/

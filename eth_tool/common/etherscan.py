@@ -334,7 +334,7 @@ def tx_xfr_info(tx, addr, **kwargs):
     if kwargs.get('mode') == 'peer':
         if tx.get('input') == '0x': # ETH xfr only.
             return info
-        if len(info) is not 1:
+        if len(info) != 1:
             return []
         if contract_info(info[0][2]) is not None:
             return [] # Skip when receiver is a contract.

@@ -1,13 +1,12 @@
 import os
 import json
 import web3
-from web3 import Web3
 
 from . import etherscan
 from . import cache
 from .logger import log, debug, error
 
-w3 = Web3(Web3.HTTPProvider(
+w3 = web3.Web3(web3.Web3.HTTPProvider(
     'https://mainnet.infura.io/v3/' + os.environ['INFURA_ID']))
 
 ########################################
@@ -52,7 +51,10 @@ def eth():
     return w3.eth
 
 def getCode(addr):
-    return Web3.toHex(w3.eth.getCode(addr))
+    return web3.Web3.toHex(w3.eth.getCode(addr))
+
+def toChecksumAddress(addr):
+    return web3.Web3.toChecksumAddress(addr)
 
 ########################################
 # token info access
@@ -62,7 +64,7 @@ def token_info(addr_or_symbol):
     if info is not None:
         return info
     
-    if Web3.isAddress(addr_or_symbol) == False:
+    if web3.Web3.isAddress(addr_or_symbol) == False:
         raise Exception("Unknown new symbol: " + addr_or_symbol)
     addr = addr_or_symbol
     symbol = call_contract(addr, 'symbol', verbose=True)
@@ -86,11 +88,11 @@ def token_balance(addr_or_name, addr, **kwargs):
         return -1
 
 def scan_balance(addr, token_addr_or_name=[], **kwargs):
-    bal = { 'ETH' : Web3.fromWei(w3.eth.getBalance(addr), 'ether') }
+    bal = { 'ETH' : web3.Web3.fromWei(w3.eth.getBalance(addr), 'ether') }
     for addr_or_name in token_addr_or_name:
         b = token_balance(addr_or_name, addr, **kwargs)
         bal[addr_or_name] = b
-        if Web3.isAddress(addr_or_name): # Also write as symbol
+        if web3.Web3.isAddress(addr_or_name): # Also write as symbol
             bal[cache.token_cache_get(addr_or_name)['symbol']] = b
     return bal
 
@@ -98,6 +100,6 @@ def print_balance(addr, token_addr_or_name=[]):
     bal_map = scan_balance(addr, token_addr_or_name)
     log('----', 'Bal', etherscan.render_addr(addr), '----')
     for k in bal_map:
-        if Web3.isAddress(k) == False:
+        if web3.Web3.isAddress(k) == False:
             if bal_map[k] != 0:
                 log(k.ljust(30), "%10f" % bal_map[k])
