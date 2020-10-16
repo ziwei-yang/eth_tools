@@ -66,9 +66,12 @@ def token_info(addr_or_symbol):
         raise Exception("Unknown new symbol: " + addr_or_symbol)
     addr = addr_or_symbol
     symbol = call_contract(addr, 'symbol', verbose=True)
+    if symbol is None:
+        return None
     name = call_contract(addr, 'name', verbose=True)
     decimals = call_contract(addr, 'decimals', verbose=True)
-    info = cache.token_cache_set(addr, symbol, name, decimals)
+    total_supply = call_contract(addr, 'totalSupply', verbose=True)
+    info = cache.token_cache_set(addr, symbol, name, decimals, total_supply=total_supply)
     return info
 
 def token_balance(addr_or_name, addr, **kwargs):
