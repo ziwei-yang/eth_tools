@@ -185,7 +185,7 @@ def token_cache_set(addr, symbol, name, decimals, **kwargs):
             'addr':   addr,
             'decimals':decimals
         }
-    if k in kwargs.get('total_supply'):
+    for k in kwargs:
         info[k] = kwargs[k]
     TOKEN_INFO_MAP[addr] = TOKEN_INFO_MAP[symbol] = info
 

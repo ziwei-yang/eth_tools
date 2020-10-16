@@ -73,7 +73,18 @@ def token_info(addr_or_symbol):
     name = call_contract(addr, 'name', verbose=True)
     decimals = call_contract(addr, 'decimals', verbose=True)
     total_supply = call_contract(addr, 'totalSupply', verbose=True)
-    info = cache.token_cache_set(addr, symbol, name, decimals, total_supply=total_supply)
+    kwargs = { 'total_supply' : total_supply }
+    # Additional parser for different contracts:
+    if symbol == 'UNI-V2':
+        token0_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token0', verbose=True))
+        token1_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token1', verbose=True))
+        token0_info = token_info(token0_addr)
+        token1_info = token_info(token1_addr)
+        fullname = name + ' ' + token0_info['symbol'] + '-' + token1_info['symbol']
+        kwargs['token0'] = token0_addr
+        kwargs['token1'] = token1_addr
+        kwargs['_fullname'] = fullname
+    info = cache.token_cache_set(addr, symbol, name, decimals, **kwargs)
     return info
 
 def token_balance(addr_or_name, addr, **kwargs):

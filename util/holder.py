@@ -5,13 +5,15 @@ from eth_tool.common import webbrowser, web3_eth, etherscan, logger, cache
 addr_or_name = sys.argv[1]
 logger.debug(addr_or_name)
 data = etherscan.token_holders(addr_or_name)
+
 addr = addr_or_name
 if Web3.isAddress(addr_or_name):
+    addr = Web3.toChecksumAddress(addr_or_name)
     info = web3_eth.token_info(addr)
-    logger.info("Token name", info['name'], addr)
-    addr = info['addr']
+    logger.info("Token name", info.get("_fullname") or info['name'], addr)
 else:
-    logger.info("Token name", addr_or_name)
+    info = web3_eth.token_info(addr)
+    logger.info("Token name", addr, info['addr'])
 
 idx = 0
 for t in data:

@@ -555,8 +555,6 @@ def __token_holder_parser(browser, **kwargs):
     status = kwargs.get("status_data") or {}
     by = kwargs.get("by")
     webdriver = kwargs.get("webdriver")
-    with open("./page.html", "w") as f:
-        f.write(browser.page_source)
     
     page_no = status.get("page_no") or 1
     # Find 'Next' link
