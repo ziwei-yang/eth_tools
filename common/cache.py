@@ -177,7 +177,7 @@ def contract_info_set(addr, j):
 # Cache for token info
 ########################################
 TOKEN_INFO_MAP = {}
-def token_cache_set(addr, symbol, name, decimals):
+def token_cache_set(addr, symbol, name, decimals, **kwargs):
     addr = Web3.toChecksumAddress(addr)
     info = {
             'symbol': symbol,
@@ -185,6 +185,8 @@ def token_cache_set(addr, symbol, name, decimals):
             'addr':   addr,
             'decimals':decimals
         }
+    if k in kwargs.get('total_supply'):
+        info[k] = kwargs[k]
     TOKEN_INFO_MAP[addr] = TOKEN_INFO_MAP[symbol] = info
 
     addr_f = CACHE_DIR + '/addr/' + addr + '.json'
