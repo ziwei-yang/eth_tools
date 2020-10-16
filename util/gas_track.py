@@ -1,5 +1,3 @@
-import json
-from web3 import Web3
 from eth_tool.common import web3_eth, etherscan, logger, cache
 
 last_data = cache.last_gas_tracker()
@@ -21,7 +19,7 @@ for t in data['data']:
         logger.log(idx_str, addr, "Tag     ", logger.green(logger.reverse(name)))
         continue
 
-    addr = Web3.toChecksumAddress(addr)
+    addr = web3_eth.toChecksumAddress(addr)
     # log("getCode()", addr)
     code = web3_eth.getCode(addr)
     if code == '0x': # Personal Address
