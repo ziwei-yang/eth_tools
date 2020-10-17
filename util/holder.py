@@ -9,18 +9,31 @@ data = etherscan.token_holders(addr_or_name)
 addr = addr_or_name
 if Web3.isAddress(addr_or_name):
     addr = Web3.toChecksumAddress(addr_or_name)
-    info = web3_eth.token_info(addr)
-    logger.info("Token name", info.get("_fullname") or info['name'], addr)
+    info = web3_eth.token_info(addr, skip_cache=True)
 else:
     info = web3_eth.token_info(addr)
-    logger.info("Token name", info.get("_fullname") or info['name'], addr)
+    if info is None:
+        logger.error("No such token", addr)
+        quit()
+    addr = info['addr']
+logger.info("Token name", info.get("_fullname") or info['name'], addr)
 
 idx = 0
+show_qty_int = None
 for t in data:
     idx = idx + 1
     idx_str = str(idx).ljust(3)
     name, addr, qty = t
-    qty = qty.split('.')[0].rjust(10) # Get Integer part
+    qty_int_str = qty.split('.')[0]
+    if show_qty_int is None: # Decide show_qty_int by first record.
+        if len(qty_int_str) > 3:
+            show_qty_int = True
+        else:
+            show_qty_int = False
+    if show_qty_int:
+            qty = qty.split('.')[0].rjust(10) # Get Integer part
+    else:
+            qty = qty.rjust(10) # Get all.
     name_pad = t[0].ljust(len(addr))
     etherscan_tag = None
     if name != addr: # Use public tag directly if could not find contract info.

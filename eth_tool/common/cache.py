@@ -170,6 +170,7 @@ def contract_info_set(addr, j):
     addr = Web3.toChecksumAddress(addr)
     CONTRACT_INFO_MAP[addr] = j
     contract_f = CACHE_DIR + '/contract/' +addr
+    debug("Cache into", contract_f)
     with open(contract_f, 'w') as f:
         f.write(json.dumps(j))
 
@@ -194,8 +195,10 @@ def token_cache_set(addr, symbol, name, decimals, **kwargs):
     if os.path.exists(addr_f) and os.path.exists(symbol_f):
         return info
     json_str = json.dumps(info)
+    debug("Cache into", addr_f)
     with open(addr_f, 'w') as f:
         f.write(json_str)
+    debug("Cache into", symbol_f)
     with open(symbol_f, 'w') as f:
         f.write(json_str)
     return info
