@@ -6,7 +6,7 @@ import time
 import re
 from web3 import Web3
 
-from . import cache, logger, webbrowser
+from . import cache, logger, webbrowser, web3_eth
 from .logger import log, debug, error
 
 def is_verbose(kwargs):
@@ -39,6 +39,13 @@ def api(**kwargs):
 # def contract_abi(addr, **kwargs):
 #     return api(module='contract', action='getabi', address=addr)
 
+def contract_abi(addr, **kwargs):
+    kwargs['abi_only'] = True
+    info = contract_info(addr, **kwargs)
+    if info is None:
+        return None
+    return info['ABI']
+
 # Fetch below data for contract:
 # SourceCode
 # ABI
@@ -46,11 +53,16 @@ def api(**kwargs):
 # CompilerVersion
 # ConstructorArguments
 # SwarmSource
+# token (token_info() if this seems to be a token contract)
 def contract_info(addr, **kwargs):
     contract_info = cache.contract_info(addr)
     if contract_info is not None:
         if len(contract_info) == 0: # Queried but no result.
             return None
+        if kwargs.get('abi_only') is not True:
+            # Might need a complemention.
+            info = __contract_info_complement(addr, contract_info)
+            return info
         return contract_info
     info = api(module='contract', action='getsourcecode', address=addr, verbose=kwargs.get("verbose"))
     if len(info) == 0: # Queried but no result.
@@ -60,7 +72,28 @@ def contract_info(addr, **kwargs):
     if len(info['SourceCode']) == 0: # Contract source code not verified.
         cache.contract_info_set(addr, {})
         return None
+    if kwargs.get('abi_only') is not True:
+        info = __contract_info_complement(addr, info)
     cache.contract_info_set(addr, info)
+    return info
+
+# If has 'totalSupply' in ABI, query its token info and overwrite its ContractName.
+def __contract_info_complement(addr, info):
+    if 'ABI' not in info:
+        return info
+    abi = json.loads(info['ABI'])
+    func_names = list(map(lambda f: f.get('name'), abi))
+    if 'totalSupply' in func_names and 'symbol' in func_names and 'token' not in info:
+        debug("Seems contract", info["ContractName"], "is a token")
+        # Save info with ABI firstly for web3_eth contract interact
+        # Token info would be saved again.
+        cache.contract_info_set(addr, info)
+        token_info = web3_eth.token_info(addr, skip_cache=True)
+        if token_info is not None:
+            info['token'] = token_info
+            info['ContractName'] = token_info.get('_fullname') or token_info['name']
+            # Save again with token info and new ContractName
+            cache.contract_info_set(addr, info)
     return info
 
 ########################################

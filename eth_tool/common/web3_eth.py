@@ -16,8 +16,7 @@ def is_verbose(kwargs):
     return kwargs.get('verbose') != False
 
 def contract_abi(addr, **kwargs):
-    info = etherscan.contract_info(addr)
-    return info['ABI']
+    return etherscan.contract_abi(addr)
 
 CONTRACT_MAP = {}
 def get_contract(addr):
@@ -28,7 +27,7 @@ def get_contract(addr):
     return CONTRACT_MAP[addr]
 
 def call_contract(contract_addr, func, *args, **kwargs):
-    if etherscan.contract_info(contract_addr) is None:
+    if etherscan.contract_abi(contract_addr) is None:
         error("No contract info", contract_addr)
         return None
     if is_verbose(kwargs):
@@ -59,14 +58,16 @@ def toChecksumAddress(addr):
 ########################################
 # token info access
 ########################################
-def token_info(addr_or_symbol):
-    info = cache.token_cache_get(addr_or_symbol)
-    if info is not None:
-        return info
+def token_info(addr_or_symbol, **kwargs):
+    info = None
+    if kwargs.get('skip_cache') != True:
+        info = cache.token_cache_get(addr_or_symbol)
+        if info is not None:
+            return info
     
     if web3.Web3.isAddress(addr_or_symbol) == False:
         raise Exception("Unknown new symbol: " + addr_or_symbol)
-    addr = addr_or_symbol
+    addr = web3.Web3.toChecksumAddress(addr_or_symbol)
     symbol = call_contract(addr, 'symbol', verbose=True)
     if symbol is None:
         return None
@@ -75,15 +76,20 @@ def token_info(addr_or_symbol):
     total_supply = call_contract(addr, 'totalSupply', verbose=True)
     kwargs = { 'total_supply' : total_supply }
     # Additional parser for different contracts:
-    if symbol == 'UNI-V2':
+    if symbol in ['UNI-V2', 'SLP']:
         token0_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token0', verbose=True))
         token1_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token1', verbose=True))
-        token0_info = token_info(token0_addr)
-        token1_info = token_info(token1_addr)
-        fullname = name + ' ' + token0_info['symbol'] + '-' + token1_info['symbol']
+        token0_symbol = cache.tag_address(token0_addr) or token_info(token0_addr)['symbol']
+        token1_symbol = cache.tag_address(token1_addr) or token_info(token1_addr)['symbol']
+        fullname = symbol + ':' + token0_symbol + '-' + token1_symbol
         kwargs['token0'] = token0_addr
         kwargs['token1'] = token1_addr
         kwargs['_fullname'] = fullname
+    elif symbol in ['BPT']:
+        token_addr_list = call_contract(addr, 'getCurrentTokens', verbose=True)
+        token_symbol_list = list(map(lambda a: cache.tag_address(a) or token_info(a)['symbol'], token_addr_list))
+        kwargs['tokens'] = token_addr_list
+        kwargs['_fullname'] = symbol + ':' + (' '.join(token_symbol_list))
     info = cache.token_cache_set(addr, symbol, name, decimals, **kwargs)
     return info
 
