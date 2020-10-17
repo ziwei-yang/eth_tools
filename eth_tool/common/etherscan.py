@@ -81,19 +81,60 @@ def contract_info(addr, **kwargs):
 def __contract_info_complement(addr, info):
     if 'ABI' not in info:
         return info
+    addr = web3_eth.toChecksumAddress(addr)
     abi = json.loads(info['ABI'])
     func_names = list(map(lambda f: f.get('name'), abi))
+    func_names = list(filter(lambda f: f != None, func_names))
+    lower_func_names = list(map(lambda f: f.lower(), func_names))
+    # Fix token full name.
     if 'totalSupply' in func_names and 'symbol' in func_names and 'token' not in info:
         debug("Seems contract", info["ContractName"], "is a token")
         # Save info with ABI firstly for web3_eth contract interact
-        # Token info would be saved again.
         cache.contract_info_set(addr, info)
+        # Token info would be saved again.
         token_info = web3_eth.token_info(addr, skip_cache=True)
         if token_info is not None:
             info['token'] = token_info
             info['ContractName'] = token_info.get('_fullname') or token_info['name']
             # Save again with token info and new ContractName
             cache.contract_info_set(addr, info)
+    # Complete Master chef contract.
+    if 'poolLength' in func_names and 'poolInfo' in func_names and 'master_of_token' not in info:
+        debug("Seems contract", info["ContractName"], "is a pool master")
+        # Save info with ABI firstly for web3_eth contract interact
+        cache.contract_info_set(addr, info)
+        # Find and save pool master info.
+        # Hint: Find method name like 'tokenPerBlock'
+        # Hint: Find method name like 'pendingNoodle' - better
+        if 'owner' in func_names:
+            info['owner'] = web3_eth.call_contract(addr, 'owner', verbose=True)
+        # Compare and filter in lowercase func names.
+        # per_block_list = list(filter(lambda f: f.endswith('perblock'), lower_func_names))
+        # per_block_list = list(filter(lambda f: f.split('perblock')[0] in lower_func_names, per_block_list))
+        per_block_list = list(filter(lambda f: f.startswith('pending'), lower_func_names))
+        per_block_list = list(filter(lambda f: f.split('pending')[1] in lower_func_names, per_block_list))
+        if len(per_block_list) > 0:
+            token_func = per_block_list[0].split('pending')[1]
+            token_func = list(filter(lambda f: f.lower() == token_func, func_names))[0] # Find correct one in func_name
+            token_addr = web3_eth.call_contract(addr, token_func, verbose=True)
+            token_info = web3_eth.token_info(token_addr)
+            if token_info != None:
+                debug("Seems contract", info["ContractName"], "is a pool master for", token_info['symbol'], token_addr)
+                info['owner'] = web3_eth.call_contract(addr, 'owner', verbose=True)
+                info['master_of_token'] = token_addr
+                cache.contract_info_set(addr, info)
+                info['ContractName'] = info['ContractName'] + ' (' + token_info['symbol']+')'
+    # Complete staking pool contract.
+    if 'stakingToken' in func_names and 'rewardsToken' in func_names and 'staking_token' not in info:
+        # Save info with ABI firstly for web3_eth contract interact
+        cache.contract_info_set(addr, info)
+        staking_token_addr = web3_eth.call_contract(addr, 'stakingToken', verbose=True)
+        rewards_token_addr = web3_eth.call_contract(addr, 'rewardsToken', verbose=True)
+        staking_token_info = web3_eth.token_info(staking_token_addr)
+        rewards_token_info = web3_eth.token_info(rewards_token_addr)
+        info['staking_token'] = staking_token_addr
+        info['rewards_token'] = rewards_token_addr
+        info['ContractName'] = info['ContractName'] + ' (' + staking_token_info['symbol']+'->' + rewards_token_info['symbol'] + ')'
     return info
 
 ########################################
