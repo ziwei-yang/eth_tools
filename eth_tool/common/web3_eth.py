@@ -68,7 +68,11 @@ def token_info(addr_or_symbol, **kwargs):
     if web3.Web3.isAddress(addr_or_symbol) == False:
         raise Exception("Unknown new symbol: " + addr_or_symbol)
     addr = web3.Web3.toChecksumAddress(addr_or_symbol)
-    symbol = call_contract(addr, 'symbol', verbose=True)
+    symbol = None
+    try:
+        symbol = call_contract(addr, 'symbol', verbose=True)
+    except web3.exceptions.ABIFunctionNotFound:
+        return None
     if symbol is None:
         return None
     name = call_contract(addr, 'name', verbose=True)
@@ -82,9 +86,19 @@ def token_info(addr_or_symbol, **kwargs):
     # Additional parser for different contracts:
     if symbol in ['UNI-V2', 'SLP']:
         token0_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token0', verbose=True))
+        token0_symbol = cache.tag_address(token0_addr)
+        if token0_symbol is None:
+            if token_info(token0_addr) is None:
+                token0_symbol = '???'
+            else:
+                token0_symbol = token_info(token0_addr)['symbol']
         token1_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token1', verbose=True))
-        token0_symbol = cache.tag_address(token0_addr) or token_info(token0_addr)['symbol']
-        token1_symbol = cache.tag_address(token1_addr) or token_info(token1_addr)['symbol']
+        token1_symbol = cache.tag_address(token1_addr)
+        if token1_symbol is None:
+            if token_info(token1_addr) is None:
+                token1_symbol = '???'
+            else:
+                token1_symbol = token_info(token1_addr)['symbol']
         fullname = symbol + ':' + token0_symbol + '-' + token1_symbol
         kwargs['token0'] = token0_addr
         kwargs['token1'] = token1_addr
