@@ -72,7 +72,11 @@ def token_info(addr_or_symbol, **kwargs):
     if symbol is None:
         return None
     name = call_contract(addr, 'name', verbose=True)
-    decimals = call_contract(addr, 'decimals', verbose=True)
+    decimals = 0
+    try:
+        decimals = call_contract(addr, 'decimals', verbose=True)
+    except web3.exceptions.ABIFunctionNotFound:
+        pass # zero by default.
     total_supply = call_contract(addr, 'totalSupply', verbose=True)
     kwargs = { 'total_supply' : total_supply }
     # Additional parser for different contracts:
