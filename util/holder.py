@@ -12,10 +12,11 @@ if Web3.isAddress(addr_or_name):
     info = web3_eth.token_info(addr, skip_cache=True)
 else:
     info = web3_eth.token_info(addr)
-    if info is None:
-        logger.error("No such token", addr)
-        quit()
-    addr = info['addr']
+
+if info is None:
+    logger.error("No such token", addr)
+    quit()
+addr = info['addr']
 logger.info("Token name", info.get("_fullname") or info['name'], addr)
 
 idx = 0

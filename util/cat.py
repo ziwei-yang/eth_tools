@@ -16,6 +16,10 @@ if info is not None:
         log("Contract info is empty", info)
     elif len(info['ContractName']) > 0:
         log("Contract name", logger.on_green(info['ContractName']))
+        if info.get('Proxy') == '1':
+            info = etherscan.contract_info(addr)
+            log("Implementation contract address", info['Implementation'])
+            log("Implementation contract", logger.on_green(info['implementation_info']['ContractName']))
         quit()
 
 log("getCode()", addr)

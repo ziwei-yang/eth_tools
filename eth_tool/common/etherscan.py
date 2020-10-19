@@ -44,6 +44,8 @@ def contract_abi(addr, **kwargs):
     info = contract_info(addr, **kwargs)
     if info is None:
         return None
+    if 'implementation_info' in info:
+        return info['implementation_info']['ABI']
     return info['ABI']
 
 # Fetch below data for contract:
@@ -53,31 +55,45 @@ def contract_abi(addr, **kwargs):
 # CompilerVersion
 # ConstructorArguments
 # SwarmSource
+# Proxy ("1" if is a proxy)
+# Implementation (address of proxy)
+# 
+# from: __contract_info_complement()
 # token (token_info() if this seems to be a token contract)
+# master_of_token (if this seems to be a chef master contract)
+# staking_token (if this seems to be a staking pool)
 def contract_info(addr, **kwargs):
-    contract_info = cache.contract_info(addr)
-    if contract_info is not None:
-        if len(contract_info) == 0: # Queried but no result.
+    info = cache.contract_info(addr)
+    if info is not None:
+        if len(info) == 0: # Queried but no result.
             return None
         if kwargs.get('abi_only') is not True:
             # Might need a complemention.
-            info = __contract_info_complement(addr, contract_info)
-            return info
-        return contract_info
-    info = api(module='contract', action='getsourcecode', address=addr, verbose=kwargs.get("verbose"))
-    if len(info) == 0: # Queried but no result.
-        cache.contract_info_set(addr, {})
-        return None
-    info = info[0]
-    if len(info['SourceCode']) == 0: # Contract source code not verified.
-        cache.contract_info_set(addr, {})
-        return None
-    if kwargs.get('abi_only') is not True:
-        info = __contract_info_complement(addr, info)
-    cache.contract_info_set(addr, info)
+            info = __contract_info_complement(addr, info)
+
+    if info is None:
+        info = api(module='contract', action='getsourcecode', address=addr, verbose=kwargs.get("verbose"))
+        if len(info) == 0: # Queried but no result.
+            cache.contract_info_set(addr, {})
+            return None
+        info = info[0]
+        if len(info['SourceCode']) == 0: # Contract source code not verified.
+            cache.contract_info_set(addr, {})
+            return None
+        if kwargs.get('abi_only') is not True:
+            info = __contract_info_complement(addr, info)
+        cache.contract_info_set(addr, info)
+
+    # If info['Proxy'] is '1' and info['Implementation'] is a address, read its info.
+    if info.get('Proxy') == '1' and 'Implementation' in info and Web3.isAddress(info['Implementation']):
+        debug("Fetch proxy implementation info", info['Implementation'])
+        info['implementation_info'] = imp_info = contract_info(Web3.toChecksumAddress(info['Implementation']))
+        info['ContractName'] = info['ContractName'] + '->' + imp_info['ContractName']
     return info
 
 # If has 'totalSupply' in ABI, query its token info and overwrite its ContractName.
+# If has 'poolInfo' in ABI, query its master chef info and overwrite its ContractName.
+# If has 'stakingToken' in ABI, query its staking pool info and overwrite its ContractName.
 def __contract_info_complement(addr, info):
     if 'ABI' not in info:
         return info
@@ -120,7 +136,6 @@ def __contract_info_complement(addr, info):
             token_info = web3_eth.token_info(token_addr)
             if token_info != None:
                 debug("Seems contract", info["ContractName"], "is a pool master for", token_info['symbol'], token_addr)
-                info['owner'] = web3_eth.call_contract(addr, 'owner', verbose=True)
                 info['master_of_token'] = token_addr
                 cache.contract_info_set(addr, info)
                 info['ContractName'] = info['ContractName'] + ' (' + token_info['symbol']+')'
@@ -643,6 +658,9 @@ def __token_holder_parser(browser, **kwargs):
     data = status.get("data") or []
     for r in rows:
         td_els = r.find_elements(by.TAG_NAME, 'td')
+        if len(td_els) < 4:
+            error(len(td_els), list(map(lambda td: td.text, td_els)))
+            break
         # rank, address(tag), quantity ...
         display_name = td_els[1].text
         qty = td_els[2].text
@@ -660,7 +678,7 @@ def __token_holder_parser(browser, **kwargs):
         debug(display_name.ljust(42), qty)
     status['data'] = data
 
-    if page_no > 0: # Might be enough.
+    if page_no >= 1: # 1 page is enough.
         return (True, status)
     status['page_no'] = (page_no + 1)
     # Scroll down
