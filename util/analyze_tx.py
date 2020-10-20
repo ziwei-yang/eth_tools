@@ -112,14 +112,20 @@ if token is not None:
             if kv[1] <= 0:
                 break
             name = etherscan.render_addr(kv[0])
-            logger.info(name, kv[1])
+            if name == kv[0]:
+                logger.info(kv[0], kv[1])
+            else:
+                logger.info(kv[0], kv[1], name)
         logger.log("Biggest net seller/depositor:")
         addr_value_list.reverse()
         for kv in addr_value_list[0:19]:
             if kv[1] >= 0:
                 break
             name = etherscan.render_addr(kv[0])
-            logger.info(name, kv[1])
+            if name == kv[0]:
+                logger.info(kv[0], kv[1])
+            else:
+                logger.info(kv[0], kv[1], name)
         quit()
     else: # Compute net value from TX for validation.
         net_value_map = {}

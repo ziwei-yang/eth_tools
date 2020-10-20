@@ -40,6 +40,7 @@ for t in data:
     if name != addr: # Use public tag directly if could not find contract info.
         etherscan_tag = name
         info = etherscan.contract_info(addr, verbose=False)
+        addr = web3_eth.toChecksumAddress(addr)
         if info is None:
             logger.log(idx_str, addr, qty, "Tag     ", logger.green(logger.reverse(name)))
         else:

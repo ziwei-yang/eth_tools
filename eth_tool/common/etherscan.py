@@ -86,7 +86,6 @@ def contract_info(addr, **kwargs):
 
     # If info['Proxy'] is '1' and info['Implementation'] is a address, read its info.
     if info.get('Proxy') == '1' and 'Implementation' in info and Web3.isAddress(info['Implementation']):
-        debug("Fetch proxy implementation info", info['Implementation'])
         info['implementation_info'] = imp_info = contract_info(Web3.toChecksumAddress(info['Implementation']))
         info['ContractName'] = info['ContractName'] + '->' + imp_info['ContractName']
     return info
