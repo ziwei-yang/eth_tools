@@ -27,7 +27,7 @@ def render_with_firefox(url, **kwargs):
     firefox.set_window_size(1400, 900)
     # Navigate to url
     if verbose:
-        debug("Render", url, "with firefox")
+        debug("Render with firefox\n", url)
     firefox.get(url)
 
     render_t = kwargs.get('render_t') or 3
@@ -48,7 +48,7 @@ def render_with_firefox(url, **kwargs):
     status_data = {} # Help post_func() to store any intermediate data.
     while True:
         if verbose:
-            debug("Process webpage", url, "with post_func")
+            debug("Process webpage with post_func\n", url)
         ret, status_data = post_func(
                 firefox,
                 by=By, ui=ui, webdriver=webdriver,

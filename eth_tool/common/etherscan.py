@@ -87,7 +87,8 @@ def contract_info(addr, **kwargs):
     # If info['Proxy'] is '1' and info['Implementation'] is a address, read its info.
     if info.get('Proxy') == '1' and 'Implementation' in info and Web3.isAddress(info['Implementation']):
         info['implementation_info'] = imp_info = contract_info(Web3.toChecksumAddress(info['Implementation']))
-        info['ContractName'] = info['ContractName'] + '->' + imp_info['ContractName']
+        if imp_info != None:
+            info['ContractName'] = info['ContractName'] + '->' + imp_info['ContractName']
     return info
 
 # If has 'totalSupply' in ABI, query its token info and overwrite its ContractName.
@@ -639,59 +640,64 @@ def gas_tracker_or_cached(**kwargs):
 ########################################
 # Token holder parser powered by browser.
 ########################################
-def __token_holder_parser(browser, **kwargs):
-    status = kwargs.get("status_data") or {}
-    by = kwargs.get("by")
-    webdriver = kwargs.get("webdriver")
-    
-    page_no = status.get("page_no") or 1
-    # Find 'Next' link
-    el_list = browser.find_elements_by_xpath("//*/a[@class='page-link']")
-    select_els = list(filter(lambda e: e.text == ">", el_list))
-    if len(select_els) < 0: # Might be 2 duplicated.
-        status["error"] = "To few <a class='page-link'> elements " + str(len(select_els))
-        return (True, status)
+def __token_holder_parser_builder(max_page):
+    def __token_holder_parser(browser, **kwargs):
+        status = kwargs.get("status_data") or {}
+        by = kwargs.get("by")
+        webdriver = kwargs.get("webdriver")
+        
+        page_no = status.get("page_no") or 1
+        # Find 'Next' link
+        el_list = browser.find_elements_by_xpath("//*/a[@aria-label='Next']")
+        select_els = list(filter(lambda e: e.get_attribute('class') == "page-link", el_list))
+        if len(select_els) < 1: # Might be 2 duplicated.
+            status["error"] = "To few <a class='page-link' aria-label='Next'> elements " + str(len(select_els))
+            return (True, status)
 
-    # Parse records.
-    rows = browser.find_elements_by_xpath("//*/table/tbody/tr")
-    data = status.get("data") or []
-    for r in rows:
-        td_els = r.find_elements(by.TAG_NAME, 'td')
-        if len(td_els) < 4:
-            error(len(td_els), list(map(lambda td: td.text, td_els)))
-            break
-        # rank, address(tag), quantity ...
-        display_name = td_els[1].text
-        qty = td_els[2].text
-        href = td_els[1].find_element(by.TAG_NAME, 'a')
-        if href is None:
-            error("No href for", r.text)
-            continue
-        # https://etherscan.io/token/0x2260fac5e5542a773aa44fbcfedf7c193bc2c599?a=0x0983e2424217e016152e2a0fb3b71d6f746e1b08
-        href = href.get_attribute("href")
-        if re.match(r"^https://etherscan.io/token/[0-9A-Za-z]{42}\?a=[0-9A-Za-z]{42}$", href) is False:
-            error("Unexpected href", href, 'for', r.text)
-            continue
-        address = href.split('?a=')[1]
-        data.append([display_name, address, qty])
-        debug(display_name.ljust(42), qty)
-    status['data'] = data
+        # Parse records.
+        rows = browser.find_elements_by_xpath("//*/table/tbody/tr")
+        data = status.get("data") or []
+        for r in rows:
+            td_els = r.find_elements(by.TAG_NAME, 'td')
+            if len(td_els) < 4:
+                error(len(td_els), list(map(lambda td: td.text, td_els)))
+                break
+            # rank, address(tag), quantity ...
+            display_name = td_els[1].text
+            qty = td_els[2].text
+            href = td_els[1].find_element(by.TAG_NAME, 'a')
+            if href is None:
+                error("No href for", r.text)
+                continue
+            # https://etherscan.io/token/0x2260fac5e5542a773aa44fbcfedf7c193bc2c599?a=0x0983e2424217e016152e2a0fb3b71d6f746e1b08
+            href = href.get_attribute("href")
+            if re.match(r"^https://etherscan.io/token/[0-9A-Za-z]{42}\?a=[0-9A-Za-z]{42}$", href) is False:
+                error("Unexpected href", href, 'for', r.text)
+                continue
+            address = href.split('?a=')[1]
+            data.append([display_name, address, qty])
+            debug(page_no, display_name.ljust(42), qty)
+        status['data'] = data
 
-    if page_no >= 1: # 1 page is enough.
-        return (True, status)
-    status['page_no'] = (page_no + 1)
-    # Scroll down
-    webbrowser.move_to_element(browser, select_els[0])
-    time.sleep(1)
-    # Click 'Next'
-    webdriver.ActionChains(browser).click_and_hold(select_els[0]).perform()
-    webdriver.ActionChains(browser).release().perform()
-    return (False, status)
+        if page_no >= max_page:
+            return (True, status)
+        status['page_no'] = (page_no + 1)
+        # Scroll down
+        webbrowser.move_to_element(browser, select_els[0])
+        time.sleep(1)
+        # Click 'Next'
+        webdriver.ActionChains(browser).click_and_hold(select_els[0]).perform()
+        webdriver.ActionChains(browser).release().perform()
+        return (False, status)
+    return __token_holder_parser
 
-def token_holders(addr_or_symbol):
+def token_holders(addr_or_symbol, **kwargs):
     addr = addr_or_symbol
     if Web3.isAddress(addr) is False:
         addr = cache.token_cache_get(addr_or_symbol)['addr']
     url = 'https://etherscan.io/token/generic-tokenholders2?a=' + addr
-    ret, data = webbrowser.render_with_firefox(url, block=__token_holder_parser)
+    max_page = kwargs.get('max_page', 1)
+    if Web3.toChecksumAddress(addr) == '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984':
+        max_page = 3
+    ret, data = webbrowser.render_with_firefox(url, block=__token_holder_parser_builder(max_page))
     return data['data']
