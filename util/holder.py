@@ -20,10 +20,14 @@ def parse_print_holders(addr, **kwargs):
 
     idx = 0
     show_qty_int = None
+    first_qty = None
     for t in data:
         idx = idx + 1
         idx_str = header + str(idx).ljust(3)
         name, addr, qty = t
+        qty_num = float(qty.replace(',', ''))
+        if first_qty is None:
+            first_qty = qty_num
         qty_int_str = qty.split('.')[0]
         if show_qty_int is None: # Decide show_qty_int by first record.
             if len(qty_int_str) > 3:
@@ -48,7 +52,7 @@ def parse_print_holders(addr, **kwargs):
         if contract_info is None:
             code = web3_eth.getCode(checksum_addr)
             if code == '0x': # Personal Address
-                if idx <= 3:
+                if idx <= 10 and qty_num/first_qty >= 0.1:
                     mem_log(idx_str, name_pad, qty)
                 continue
 
