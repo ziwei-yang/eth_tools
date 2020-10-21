@@ -650,9 +650,7 @@ def __token_holder_parser_builder(max_page):
         # Find 'Next' link
         el_list = browser.find_elements_by_xpath("//*/a[@aria-label='Next']")
         select_els = list(filter(lambda e: e.get_attribute('class') == "page-link", el_list))
-        if len(select_els) < 1: # Might be 2 duplicated.
-            status["error"] = "To few <a class='page-link' aria-label='Next'> elements " + str(len(select_els))
-            return (True, status)
+        has_next_page = (len(select_els) > 0)
 
         # Parse records.
         rows = browser.find_elements_by_xpath("//*/table/tbody/tr")
@@ -679,7 +677,7 @@ def __token_holder_parser_builder(max_page):
             debug(page_no, display_name.ljust(42), qty)
         status['data'] = data
 
-        if page_no >= max_page:
+        if page_no >= max_page or has_next_page is False:
             return (True, status)
         status['page_no'] = (page_no + 1)
         # Scroll down
@@ -698,6 +696,8 @@ def token_holders(addr_or_symbol, **kwargs):
     url = 'https://etherscan.io/token/generic-tokenholders2?a=' + addr
     max_page = kwargs.get('max_page', 1)
     if Web3.toChecksumAddress(addr) == '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984':
-        max_page = 3
+        max_page = 3 # For UNI
+    elif Web3.toChecksumAddress(addr) == '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2':
+        max_page = 10 # For WETH
     ret, data = webbrowser.render_with_firefox(url, block=__token_holder_parser_builder(max_page))
     return data['data']

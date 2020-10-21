@@ -180,6 +180,10 @@ def contract_info_set(addr, j):
 TOKEN_INFO_MAP = {}
 def token_cache_set(addr, symbol, name, decimals, **kwargs):
     addr = Web3.toChecksumAddress(addr)
+    if type(symbol) != str:
+        symbol = str(symbol)
+    if type(name) != str:
+        name = str(name)
     info = {
             'symbol': symbol,
             'name':   name,

@@ -68,6 +68,7 @@ def token_info(addr_or_symbol, **kwargs):
     if web3.Web3.isAddress(addr_or_symbol) == False:
         raise Exception("Unknown new symbol: " + addr_or_symbol)
     addr = web3.Web3.toChecksumAddress(addr_or_symbol)
+
     symbol = None
     try:
         symbol = call_contract(addr, 'symbol', verbose=True)
@@ -75,13 +76,21 @@ def token_info(addr_or_symbol, **kwargs):
         return None
     if symbol is None:
         return None
+
     name = call_contract(addr, 'name', verbose=True)
-    decimals = 0
+
+    decimals = 0 # zero by default.
     try:
         decimals = call_contract(addr, 'decimals', verbose=True)
     except web3.exceptions.ABIFunctionNotFound:
-        pass # zero by default.
-    total_supply = call_contract(addr, 'totalSupply', verbose=True)
+        pass
+
+    total_supply = 0 # zero by default.
+    try:
+        total_supply = call_contract(addr, 'totalSupply', verbose=True)
+    except web3.exceptions.ABIFunctionNotFound:
+        pass
+
     kwargs = { 'total_supply' : total_supply }
     # Additional parser for different contracts:
     if symbol in ['UNI-V2', 'SLP']:
