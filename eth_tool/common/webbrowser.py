@@ -3,6 +3,7 @@
 #################################################
 
 import time
+import selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import ui
@@ -19,10 +20,11 @@ def move_to_element(browser, el):
     browser.execute_script(js)
 
 def render_with_firefox(url, **kwargs):
-    verbose = (kwargs.get("verbose") is not False)
+    verbose = (kwargs.get("verbose") != False)
     # See https://www.selenium.dev/selenium/docs/api/py/webdriver_firefox/selenium.webdriver.firefox.options.html
     firefox_options = webdriver.FirefoxOptions()
-    firefox_options.headless = True
+    if kwargs.get("headless") != False:
+        firefox_options.headless = True
     firefox = webdriver.Firefox(options=firefox_options)
     firefox.set_window_size(1400, 900)
     # Navigate to url
@@ -46,13 +48,21 @@ def render_with_firefox(url, **kwargs):
     # To select by XPATH:
     # See https://www.guru99.com/xpath-selenium.html
     status_data = {} # Help post_func() to store any intermediate data.
-    while True:
+    while True: # Endless trying if error happens.
         if verbose:
             debug("Process webpage with post_func\n", url)
-        ret, status_data = post_func(
-                firefox,
-                by=By, ui=ui, webdriver=webdriver,
-                status_data=status_data)
+
+        try:
+            last_status_data = status_data.copy()
+            ret, status_data = post_func(
+                    firefox,
+                    by=By, ui=ui, webdriver=webdriver,
+                    status_data=status_data)
+        except selenium.common.exceptions.StaleElementReferenceException:
+            error("Have no idea why this happens, revert status data and try again.")
+            status_data = last_status_data
+            continue
+
         if status_data.get("error") is not None:
             error(status_data["error"])
         if ret == True:

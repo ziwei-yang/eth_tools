@@ -16,6 +16,7 @@ export ETH_TOOLS_DIR=$DIR
 
 mkdir -p $DIR/cache
 mkdir -p $DIR/data
+mkdir -p $DIR/output
 
 cd $DIR
 

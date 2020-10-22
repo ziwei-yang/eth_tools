@@ -8,15 +8,17 @@ mem_logs = []
 def mem_log(*args):
     strs = logger.log(*args, stacktrace_level=2)
     mem_logs.append(strs)
+    globals()['mem_log_f'].write(" ".join(strs[2:]) + "\n") # Remove headers
+    globals()['mem_log_f'].flush()
 
-def parse_print_holders(addr, **kwargs):
-    token_info = kwargs.get("token_info") or web3_eth.token_info(addr)
+def parse_print_holders(target_addr, **kwargs):
+    token_info = kwargs.get("token_info") or web3_eth.token_info(target_addr)
     header = kwargs.get("header") or ""
     if token_info is None:
-        logger.error("No such token", addr)
+        logger.error("No such token", target_addr)
         return
 
-    data = etherscan.token_holders(addr)
+    data = etherscan.token_holders(target_addr)
 
     idx = 0
     show_qty_int = None
@@ -63,34 +65,40 @@ def parse_print_holders(addr, **kwargs):
                 mem_log(idx_str, name_pad, qty, "Contract", "????")
             continue
         contract_name = contract_info['ContractName']
-        mem_log(idx_str, name_pad, qty, "Contract", logger.green(logger.reverse(contract_name)))
+        mem_log(idx_str, checksum_addr, qty, "Contract", logger.green(logger.reverse(contract_name)))
         # If contract is LP, analyze its holder too.
-        if contract_name.startswith("UNI-V2:"):
-            parse_print_holders(addr, header="\t|-----\t")
+        if checksum_addr == web3_eth.toChecksumAddress(target_addr):
+            pass
+        elif contract_name.startswith("UNI-V2:"):
+            parse_print_holders(addr, header=header+"\t|-----\t")
         elif contract_name.startswith("BPT:"):
-            parse_print_holders(addr, header="\t|-----\t")
+            parse_print_holders(addr, header=header+"\t|-----\t")
         elif contract_name.startswith("SLP:"):
-            parse_print_holders(addr, header="\t|-----\t")
+            parse_print_holders(addr, header=header+"\t|-----\t")
 
-addr = None
+token_addr = None
 token_info = None
 for a in sys.argv:
     if Web3.isAddress(a):
-        addr = Web3.toChecksumAddress(a)
-        token_info = web3_eth.token_info(addr)
+        token_addr = Web3.toChecksumAddress(a)
+        token_info = web3_eth.token_info(token_addr)
     elif re.match(r'^[A-Za-z0-9\-]{2,8}$', a):
         token = a.upper()
         token_info = web3_eth.token_info(a)
 
 if token_info is None:
-    logger.error("No such token", addr)
+    logger.error("No such token", token_addr)
     quit()
-addr = token_info['addr']
-mem_log("Token name", token_info.get("_fullname") or token_info['name'], addr)
+token_addr = token_info['addr']
+globals()['mem_log_f'] = open("output/holder."+token_addr+".log", 'w')
 
-parse_print_holders(addr, token_info=token_info)
+mem_log("Token name", token_info.get("_fullname") or token_info['name'], token_addr)
+
+parse_print_holders(token_addr, token_info=token_info)
 
 logger.info("memorized logs:")
 for strs in mem_logs:
     strs = strs[2:] # Remove header
     print(*strs)
+
+globals()['mem_log_f'].close()

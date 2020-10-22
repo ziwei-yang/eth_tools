@@ -6,6 +6,7 @@ conf/
 cache/
 data/
 res/
+output/
 
 eth_tool.egg-info/
 geckodriver.log

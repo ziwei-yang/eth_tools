@@ -147,9 +147,10 @@ def __contract_info_complement(addr, info):
         rewards_token_addr = web3_eth.call_contract(addr, 'rewardsToken', verbose=True)
         staking_token_info = web3_eth.token_info(staking_token_addr)
         rewards_token_info = web3_eth.token_info(rewards_token_addr)
-        info['staking_token'] = staking_token_addr
-        info['rewards_token'] = rewards_token_addr
-        info['ContractName'] = info['ContractName'] + ' (' + staking_token_info['symbol']+'->' + rewards_token_info['symbol'] + ')'
+        if staking_token_info != None and rewards_token_info != None:
+            info['staking_token'] = staking_token_addr
+            info['rewards_token'] = rewards_token_addr
+            info['ContractName'] = info['ContractName'] + ' (' + staking_token_info['symbol']+'->' + rewards_token_info['symbol'] + ')'
     return info
 
 ########################################
@@ -677,7 +678,8 @@ def __token_holder_parser_builder(max_page):
             debug(page_no, display_name.ljust(42), qty)
         status['data'] = data
 
-        if page_no >= max_page or has_next_page is False:
+        debug("page", page_no, "/", max_page, "has next?", has_next_page)
+        if (page_no >= max_page) or (has_next_page == False):
             return (True, status)
         status['page_no'] = (page_no + 1)
         # Scroll down
@@ -699,5 +701,8 @@ def token_holders(addr_or_symbol, **kwargs):
         max_page = 3 # For UNI
     elif Web3.toChecksumAddress(addr) == '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2':
         max_page = 10 # For WETH
-    ret, data = webbrowser.render_with_firefox(url, block=__token_holder_parser_builder(max_page))
+    ret, data = webbrowser.render_with_firefox(
+            url,
+            block=__token_holder_parser_builder(max_page)
+        )
     return data['data']
