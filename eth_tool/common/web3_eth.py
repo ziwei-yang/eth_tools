@@ -95,32 +95,34 @@ def token_info(addr_or_symbol, **kwargs):
     # Additional parser for different contracts:
     if symbol in ['UNI-V2', 'SLP']:
         token0_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token0', verbose=True))
-        token0_symbol = __token_shown_symbol(token0_addr, '???')
+        token0_symbol = __token_shown_symbol_curry('???')(token0_addr)
         if token0_symbol is None:
             if token_info(token0_addr) is None:
                 token0_symbol = '???'
             else:
                 token0_symbol = token_info(token0_addr)['symbol']
         token1_addr = web3.Web3.toChecksumAddress(call_contract(addr, 'token1', verbose=True))
-        token1_symbol = __token_shown_symbol(token1_addr, '???')
+        token1_symbol = __token_shown_symbol_curry('???')(token1_addr)
         fullname = symbol + ':' + token0_symbol + '-' + token1_symbol
         kwargs['token0'] = token0_addr
         kwargs['token1'] = token1_addr
         kwargs['_fullname'] = fullname
     elif symbol in ['BPT']:
         token_addr_list = call_contract(addr, 'getCurrentTokens', verbose=True)
-        token_symbol_list = list(map(__token_shown_symbol, token_addr_list))
+        token_symbol_list = list(map(__token_shown_symbol_curry('???'), token_addr_list))
         kwargs['tokens'] = token_addr_list
         kwargs['_fullname'] = symbol + ':' + (' '.join(token_symbol_list))
     info = cache.token_cache_set(addr, symbol, name, decimals, **kwargs)
     return info
 
-def __token_shown_symbol(addr, default=None):
-    if cache.tag_address(addr) != None:
-        return cache.tag_address(addr)
-    if token_info(addr) is None:
-        return default
-    return token_info(addr)['symbol']
+def __token_shown_symbol_curry(default=None):
+    def __token_shown_symbol(addr):
+        if cache.tag_address(addr) != None:
+            return cache.tag_address(addr)
+        if token_info(addr) is None:
+            return default
+        return token_info(addr)['symbol']
+    return __token_shown_symbol
 
 def token_balance(addr_or_name, addr, **kwargs):
     info = token_info(addr_or_name)
