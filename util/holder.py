@@ -1,5 +1,6 @@
 import sys
 import re
+import os
 from web3 import Web3
 from eth_tool.common import webbrowser, web3_eth, etherscan, logger, cache
 
@@ -70,11 +71,11 @@ def parse_print_holders(target_addr, **kwargs):
         if checksum_addr == web3_eth.toChecksumAddress(target_addr):
             pass
         elif contract_name.startswith("UNI-V2:"):
-            parse_print_holders(addr, header=header+"\t|-----\t")
+            parse_print_holders(addr, header=' '*len(header) + "\t|-----\t")
         elif contract_name.startswith("BPT:"):
-            parse_print_holders(addr, header=header+"\t|-----\t")
+            parse_print_holders(addr, header=' '*len(header) + "\t|-----\t")
         elif contract_name.startswith("SLP:"):
-            parse_print_holders(addr, header=header+"\t|-----\t")
+            parse_print_holders(addr, header=' '*len(header) + "\t|-----\t")
 
 token_addr = None
 token_info = None
@@ -90,7 +91,7 @@ if token_info is None:
     logger.error("No such token", token_addr)
     quit()
 token_addr = token_info['addr']
-globals()['mem_log_f'] = open("output/holder."+token_addr+".log", 'w')
+globals()['mem_log_f'] = open("output/holder."+token_addr+".log.tmp", 'w')
 
 mem_log("Token name", token_info.get("_fullname") or token_info['name'], token_addr)
 
@@ -102,3 +103,7 @@ for strs in mem_logs:
     print(*strs)
 
 globals()['mem_log_f'].close()
+os.rename(
+        "output/holder."+token_addr+".log.tmp",
+        "output/holder."+token_addr+".log"
+    )

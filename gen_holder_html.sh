@@ -20,3 +20,5 @@ cat $log | $ansi2html --palette=solarized-xterm --bg=dark > $html
 echo "Uploading $html"
 scp $html $remote:/var/nginx/www/
 [[ $? != 0 ]] && echo "Failed in uploading $log" && exit 1
+
+echo "View https://$remote/holder.$addr.html on your browser"
