@@ -1,6 +1,7 @@
 import sys
 import re
 import os
+import datetime
 from web3 import Web3
 from eth_tool.common import webbrowser, web3_eth, etherscan, logger, cache
 
@@ -49,7 +50,7 @@ def parse_print_holders(target_addr, **kwargs):
         if has_tag: # Use public tag directly if could not find contract info.
             contract_info = etherscan.contract_info(checksum_addr, verbose=False)
             if contract_info is None:
-                mem_log(idx_str, checksum_addr, qty, "Tag     ", logger.green(logger.reverse(name)))
+                mem_log(idx_str, checksum_addr, qty, "Tag     ", logger.light_white(logger.on_green(name)))
                 continue
 
         if contract_info is None:
@@ -66,7 +67,7 @@ def parse_print_holders(target_addr, **kwargs):
                 mem_log(idx_str, name_pad, qty, "Contract", "????")
             continue
         contract_name = contract_info['ContractName']
-        mem_log(idx_str, checksum_addr, qty, "Contract", logger.green(logger.reverse(contract_name)))
+        mem_log(idx_str, checksum_addr, qty, "Contract", logger.light_white(logger.on_green(contract_name)))
         # If contract is LP, analyze its holder too.
         if checksum_addr == web3_eth.toChecksumAddress(target_addr):
             pass
@@ -93,7 +94,12 @@ if token_info is None:
 token_addr = token_info['addr']
 globals()['mem_log_f'] = open("output/holder."+token_addr+".log.tmp", 'w')
 
-mem_log("Token name", token_info.get("_fullname") or token_info['name'], token_addr)
+mem_log(
+    datetime.datetime.now().strftime("%m/%d-%H:%M:%S.%f"),
+    "[",
+    token_info.get("_fullname") or token_info['name'],
+    "]",
+    token_addr)
 
 parse_print_holders(token_addr, token_info=token_info)
 
