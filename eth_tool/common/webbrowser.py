@@ -58,8 +58,10 @@ def render_with_firefox(url, **kwargs):
                     firefox,
                     by=By, ui=ui, webdriver=webdriver,
                     status_data=status_data)
-        except selenium.common.exceptions.StaleElementReferenceException:
-            error("Have no idea why this happens, revert status data and try again.")
+        except (selenium.common.exceptions.StaleElementReferenceException,
+                selenium.common.exceptions.WebDriverException) as e:
+            error(e)
+            error("No idea what happened, revert status data and try again.")
             status_data = last_status_data
             continue
 
