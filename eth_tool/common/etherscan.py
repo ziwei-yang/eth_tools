@@ -699,6 +699,10 @@ def token_holders(addr_or_symbol, **kwargs):
     max_page = kwargs.get('max_page', 1)
     if Web3.toChecksumAddress(addr) == '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984':
         max_page = 3 # For UNI
+    elif Web3.toChecksumAddress(addr) == '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599':
+        max_page = 3 # For WBTC
+    elif Web3.toChecksumAddress(addr) == '0x6B175474E89094C44Da98b954EedeAC495271d0F':
+        max_page = 3 # For DAI
     elif Web3.toChecksumAddress(addr) == '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2':
         max_page = 10 # For WETH
     ret, data = webbrowser.render_with_firefox(
