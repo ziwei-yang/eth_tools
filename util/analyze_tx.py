@@ -44,6 +44,8 @@ for a in sys.argv:
         addr_list = [a]
     elif a.upper() == 'BYVALUE': # Order TX by token value
         order_by = 'value'
+    elif a.upper() == 'AGG': # Order TX by token value
+        order_by = 'aggregate'
     elif a.upper() == 'BYTIME':
         order_by = None # Default
     elif a.upper() == 'BYNET': # Order TX associate addresses by sum(token value).
@@ -98,11 +100,26 @@ if token is not None:
     if order_by == 'value':
         logger.log("Sort", len(all_txs), "TX by", token, "Value")
         all_txs = sorted(all_txs, key=lambda tx: etherscan.tx_token_value(tx, token), reverse=True)
+    elif order_by == 'aggregate':
+        logger.log("Compute aggregate info in", len(txs), "TX with", token)
+        info_list = []
+        for tx in all_txs:
+            if token in etherscan.tx_tokens(tx):
+                info_list = info_list + etherscan.tx_xfr_info(tx, tx['owner'])
+        inbound_aggregate_info = {}
+        outbound_aggregate_info = {}
+        for info in info_list:
+            token, value, associate_addr = info
+            if value < 0:
+                outbound_aggregate_info[token] = outbound_aggregate_info.get(token, 0) + value
+            elif value > 0:
+                inbound_aggregate_info[token] = inbound_aggregate_info.get(token, 0) + value
     elif order_by == 'netvalue':
         logger.log("Compute", token, "net value in", len(txs), "TX")
         net_value_map = {}
         for tx in all_txs:
-            net_value_map = etherscan.tx_token_netvalue(tx, token, net_value_map=net_value_map)
+            if token in etherscan.tx_tokens(tx):
+                net_value_map = etherscan.tx_token_netvalue(tx, token, net_value_map=net_value_map)
         for a in addr_list:
             if a in net_value_map:
                 net_value_map.pop(a)
@@ -142,15 +159,21 @@ if token is not None:
 # TX printing
 #################################################
 logger.log("Total", len(all_txs), "TX")
-ct = 0
-for tx in all_txs:
-    # Post-filtering
-    if filter_by == 'peer':
-        if len(etherscan.tx_xfr_info(tx, a, mode='peer')) != 1:
-            continue
-    ct += 1
-    print(ct, '---------------------------------')
-    print(etherscan.format_tx(tx, addr=tx['owner'], show_owner=(len(addr_list)>1)))
-    if ct % page_size == 0:
-        logger.info("Press enter to show", page_size, "more TX")
-        input()
+if order_by == 'aggregate':
+    for token in inbound_aggregate_info:
+        logger.info(token.ljust(12), "<-", inbound_aggregate_info[token])
+    for token in outbound_aggregate_info:
+        logger.info(token.ljust(12), "->", -1*outbound_aggregate_info[token])
+else:
+    ct = 0
+    for tx in all_txs:
+        # Post-filtering
+        if filter_by == 'peer':
+            if len(etherscan.tx_xfr_info(tx, a, mode='peer')) != 1:
+                continue
+        ct += 1
+        print(ct, '---------------------------------')
+        print(etherscan.format_tx(tx, addr=tx['owner'], show_owner=(len(addr_list)>1)))
+        if ct % page_size == 0:
+            logger.info("Press enter to show", page_size, "more TX")
+            input()
