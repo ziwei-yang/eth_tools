@@ -138,6 +138,8 @@ def token_balance(addr_or_name, addr, **kwargs):
 def scan_balance(addr, token_addr_or_name=[], **kwargs):
     bal = { 'ETH' : web3.Web3.fromWei(w3.eth.getBalance(addr), 'ether') }
     for addr_or_name in token_addr_or_name:
+        if addr_or_name == 'ETH':
+            continue
         b = token_balance(addr_or_name, addr, **kwargs)
         bal[addr_or_name] = b
         if web3.Web3.isAddress(addr_or_name): # Also write as symbol
